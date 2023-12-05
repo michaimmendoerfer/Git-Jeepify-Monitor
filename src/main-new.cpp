@@ -19,6 +19,17 @@
 
 #define VERSION   "V 0.01"
 
+#define SWIPE_LEFT  10
+#define SWIPE_RIGHT 11
+#define SWIPE_DOWN  12
+#define SWIPE_UP    13
+#define LONG_PRESS   4
+#define DBLCLICK     3
+#define CLICK        2
+#define TOUCHED      1
+
+#define LONG_PRESS_INTERVAL 300
+
 struct struct_Sensor {
     char        Name[20];
     int         Type;      //1=Switch, 2=Amp, 3=Volt
@@ -46,7 +57,12 @@ struct struct_Button {
   char Name[20];
   bool Status;
 };
-
+struct Touch_struct {
+  int x0, x1, y0, y1;
+  uint32_t TSTouched;
+  uint32_t TSReleased;
+  int Gesture;
+};
 struct_Button Button[10] = {
   { 25, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Volt", false},
   { 95, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Amp",  false},
@@ -107,74 +123,62 @@ void   EichenVolt();
 bool   isSwitch(int Type);
 bool   isSensor(int Type);
 
+uint32_t TSTouch = 0;
+
+int    TouchRead();
+
 void   PrintMAC(const uint8_t * mac_addr);
 unsigned int rainbow(byte value);
 uint16_t rainbowColor(uint8_t spectrum);
 
+Touch_struct Touch;
 
+void setup() {
+  InitModule();
+
+}
+loop() {
+  if (millis() - TSTouch > TOUCH_INTERVAL) {
+    TSTouch = millis();
+    
+    if (TouchRead() > 1) { //
+
+    };
+    touchX = 240-touchX; 
+
+    if (TouchContact) {
+      touched = true;
+    }
+    else if (touched) {
+      if      (gesture == 1) modeUp();          //swipe up 
+      else if (gesture == 2) modeDown();        //swipe down 
+      else if (gesture == 3) modeLeft();        //swipe left
+      else if (gesture == 4) modeRight();       //swipe right
+      
+}
 void InitModule() {
-  /*preferences.begin("JeepifyPeers", false);
-    preferences.putBool("Initialized", true);
-  preferences.end();
-
-  preferences.begin("JeepifyInit", false);
-    preferences.putBool("Debug", true);
-    preferences.putBool("SleepMode", false);
-
-    preferences.putInt("Null-0", 3134);
-    preferences.putFloat("Sens-0", 0.066);
-    preferences.putInt("Null-1", 3134);
-    preferences.putFloat("Sens-1", 0.066);
-    preferences.putInt("Null-2", 3134);
-    preferences.putFloat("Sens-2", 0.066);
-    preferences.putInt("Null-3", 3134);
-    preferences.putFloat("Sens-3", 0.066);
-
-    preferences.putInt("Vin", 200);
-  preferences.end();
-  */
   preferences.begin("JeepifyInit", true);
   Debug     = preferences.getBool("Debug", true);
   SleepMode = preferences.getBool("SleepMode", false);
-  
-  strcpy(S[0].Name, NAME_SENSOR_0);
-  S[0].Type     = 1;
-  S[0].IOPort   = 0;
-  S[0].NullWert = preferences.getInt("Null-0", 3134);
-  S[0].VperAmp  = preferences.getFloat("Sens-0", 0.066);
-
-  strcpy(S[1].Name, NAME_SENSOR_1);
-  S[1].Type     = 1;
-  S[1].IOPort   = 1;
-  S[1].NullWert = preferences.getInt("Null-1", 3134);
-  S[1].VperAmp  = preferences.getFloat("Sens-1", 0.066);
-
-  strcpy(S[2].Name, NAME_SENSOR_2);
-  S[2].Type     = 1;
-  S[2].IOPort   = 2;
-  S[2].NullWert = preferences.getInt("Null-2", 3150);
-  S[2].VperAmp  = preferences.getFloat("Sens-2", 0.066);
-
-  strcpy(S[3].Name, NAME_SENSOR_3);
-  S[3].Type     = 1;
-  S[3].IOPort   = 3;
-  S[3].NullWert = preferences.getInt("Null-3", 3150);
-  S[3].VperAmp  = preferences.getFloat("Sens-3", 0.066);
-
-  strcpy(S[4].Name, NAME_SENSOR_4);
-  S[4].Type     = 2;
-  S[4].IOPort   = PIN_VOLTAGE;
-  S[4].Vin      = preferences.getInt("Vin", 200);
-  S[4].VperAmp  = 1;
-
   preferences.end();
+
+  Touch.begin();
+
+  Serial.begin(74880);
+
+  pinMode(TFT_BL, OUTPUT);
+  digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+
+  TFT.init();
+  TFT.setRotation(Rotation);
+  TFT.setSwapBytes(true);
 
   Serial.println("InitModule() fertig...");
 }
 void SavePeers() {
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
-  char Buf[10] = {}; char BufNr[5] = {}; char BufB[5] = {}; String BufS;
+  char Buf[10] = {}; char BufNr[5] = {}; String BufS;
 
   PeerCount = 0;
 
@@ -186,16 +190,16 @@ void SavePeers() {
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].Type);
       if (preferences.getInt(Buf, 0) != P[Pi].Type) preferences.putInt(Buf, P[Pi].Type);
       
+      //P.BroadcastAddress
+      strcpy(Buf, "MAC-"); strcat (Buf, BufNr);
+      preferences.putBytes(Buf, P[Pi].BroadcastAddress, 6);
+      Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); PrintMAC(MAC);
+      
       //P.Name
       strcpy(Buf, "Name-"); strcat(Buf, BufNr);
       BufS = P[Pi].Name;
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(BufS);
       if (preferences.getString(Buf, "") != BufS) preferences.putString(Buf, BufS);
-      
-      //P.BroadcastAddress
-      strcpy(Buf, "MAC-"); strcat(Buf, BufB); strcat (Buf, BufNr);
-      preferences.putBytes(Buf, P[Pi].BroadcastAddress, 6);
-      }
     }
   }
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
@@ -238,7 +242,6 @@ void GetPeers() {
   }
   preferences.end();
 }
-
 void ReportPeers() {
   TFT.fillScreen(TFT_BLACK);
   TFT.setCursor(0, 0, 2);
@@ -305,4 +308,52 @@ void ClearInit() {
     Serial.println("JeepifyInit cleared...");
   preferences.end();
 }
+void PushTFT() {
+  if (ScreenChanged) {
+    Serial.print("ScreenUpdate: ");
+    Serial.println(UpdateCount);
+    TFTBuffer.pushSprite(0, 0);
+    ScreenChanged = false;
+  }
+}
+void SetSleepMode(bool Mode) {
+  preferences.begin("JeepifyInit", false);
+    SleepMode = Mode;
+    if (preferences.getBool("SleepMode", false) != SleepMode) preferences.putBool("SleepMode", SleepMode);
+  preferences.end();
+}
+void SetDebugMode(bool Mode) {
+  preferences.begin("JeepifyInit", false);
+    Debug = Mode;
+    if (preferences.getBool("Debug", false) != Debug) preferences.putBool("Debug", Debug);
+  preferences.end();
+}
+bool isSwitch(int Type) {
+  return ((Type == SWITCH_1_WAY) or (Type == SWITCH_2_WAY) or (Type == SWITCH_4_WAY) or (Type == SWITCH_8_WAY));      
+}
+bool isSensor(int Type) {
+  return(Type == BATTERY_SENSOR);
+}
+int  TouchRead() {
+  TSTouch = millis();
+    
+    if (TouchRead() > 1) { //
 
+    };
+    touchX = 240-touchX; 
+
+    if (TouchContact) {
+      touched = true;
+    }
+    else if (touched) {
+      if      (gesture == 1) modeUp();          //swipe up 
+      else if (gesture == 2) modeDown();        //swipe down 
+      else if (gesture == 3) modeLeft();        //swipe left
+      else if (gesture == 4) modeRight    
+}
+void  PrintMAC(const uint8_t * mac_addr){
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+  Serial.print(macStr);
+}
