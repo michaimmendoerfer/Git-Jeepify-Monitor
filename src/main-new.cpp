@@ -115,7 +115,6 @@ void   ShowAllText(int zNr);
 
 int    RingMeter(float value, float vmin, float vmax, const char *units, const char *bez, byte scheme);
 void   LinearMeter(int val, int x, int y, int w, int h, int g, int n, byte s);
-float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 
 int    CalcField(int x, int y);
 void   AddVolt(int i);
@@ -123,16 +122,18 @@ void   EichenVolt();
 
 bool   isSwitch(int Type);
 bool   isSensor(int Type);
-
-uint32_t TSTouch = 0;
+int    TouchQuarteer(void);
 
 int    TouchRead();
 
 void   PrintMAC(const uint8_t * mac_addr);
+float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
 uint16_t rainbowColor(uint8_t spectrum);
 
 Touch_struct Touch;
+
+uint32_t TSTouch = 0;
 
 void setup() {
   InitModule();
@@ -140,22 +141,112 @@ void setup() {
 }
 loop() {
   if (millis() - TSTouch > TOUCH_INTERVAL) {
-    TSTouch = millis();
-    
-    if (TouchRead() > 1) { //
-
-    };
-    touchX = 240-touchX; 
-
-    if (TouchContact) {
-      touched = true;
-    }
-    else if (touched) {
-      if      (gesture == 1) modeUp();          //swipe up 
+    if (TouchRead() > 1) {
+      //S_MENU
+      switch (Mode) {
+        case S_MENU    : 
+          switch (TouchQuarter()) {
+            case 1: Mode = S_SENSOR1; break;
+            case 2: Mode = S_SWITCH1; break;
+            case 3: Mode = S_SWITCH4; break;
+            case 4: Mode = S_SETTING; break;
+          }
+          break;
+        case S_SWITCH1 : ToggleSwitch(1); break;
+        case S_SWITCH4 : 
+          switch (TouchQuarter()) {
+            case 1: ToggleSwitch(0); break;
+            case 2: ToggleSwitch(1); break;
+            case 3: ToggleSwitch(2); break;
+            case 4: ToggleSwitch(3); break;
+          }
+          break;
+        case S_SENSOR1 : 
+          switch(Touch.Gesture) {
+            case SWIPE_LEFT:  break; //Sensor +
+            case SWIPE_RIGHT: break; //Sensor -
+            case SWIPE_UP:    break; //Menu
+            case SWIPE_DOWN:  break; //Menu
+            case LONG_PRESS:  break; //Change Peer
+          }
+          break;
+        case S_SENSOR4 : 
+          switch(Touch.Gesture) {
+            case SWIPE_LEFT:  break; //Sensor oder Peer +
+            case SWIPE_RIGHT: break; //Sensor oder Peer -
+            case SWIPE_UP:    break; //Menu
+            case SWIPE_DOWN:  break; //Menu
+            case LONG_PRESS:  break; //Change Peer
+          }
+          break;
+        case S_PEER    : ShowPeer();    break;
+        case S_PEERS   : ShowPeers();   break;
+        case S_JSON    : ShowJSON();    break;
+        case S_SETTING : ShowSetting(); break;
+      }
+              if      (gesture == 1) modeUp();          //swipe up 
       else if (gesture == 2) modeDown();        //swipe down 
       else if (gesture == 3) modeLeft();        //swipe left
       else if (gesture == 4) modeRight();       //swipe right
       
+      else if (mode == S_SW_0) ToggleSwitch(AktPDC, 0);
+      else if (mode == S_SW_1) ToggleSwitch(AktPDC, 1);
+      else if (mode == S_SW_2) ToggleSwitch(AktPDC, 2);
+      else if (mode == S_SW_3) ToggleSwitch(AktPDC, 3);
+      
+      else if (mode == S_SW_ALL) {
+             if (touchX<120 and touchY<120) ToggleSwitch(AktPDC, 0);
+        else if (touchX>120 and touchY<120) ToggleSwitch(AktPDC, 1);
+        else if (touchX<120 and touchY>120) ToggleSwitch(AktPDC, 2);
+        else if (touchX>120 and touchY>120) ToggleSwitch(AktPDC, 3);
+      }
+      else if (mode == S_MENU) {
+             if (touchX<120 and touchY<120) mode = S_BAT_EXT_A; 
+        else if (touchX>120 and touchY<120) mode = S_SW_0;
+        else if (touchX<120 and touchY>120) mode = S_SW_ALL;
+        else if (touchX>120 and touchY>120) mode = S_TXT_ALL;
+      }
+      else if (mode == S_TXT_ALL) {
+             if (ButtonHit(touchX, touchY, 0)) { mode = S_CALIB_V; EichenVolt(); }
+        else if (ButtonHit(touchX, touchY, 1)) { ForceEichen(); }
+        else if (ButtonHit(touchX, touchY, 2)) { mode = S_DBG_JSON; }
+        else if (ButtonHit(touchX, touchY, 3)) { 
+          ScreenChanged = true;
+          oldMode = S_BAT_BAT_V; // for refresh
+          Debug = !Debug; 
+          preferences.begin("Jeepify", false);
+          preferences.putBool("Debug", Debug);
+          preferences.end();
+        }
+        else if (ButtonHit(touchX, touchY, 4)) { 
+          if (gesture == 12) { ClearPeers(); }
+          else {
+            ScreenChanged = true;
+            Pairing = !Pairing;
+            if (Pairing) TimestampPair = millis();
+            else         TimestampPair = 0;
+          }
+        }
+      }
+      else if (mode == S_CALIB_V) {
+        AddVolt(CalcField(touchX, touchY));
+      }
+      else if (mode == S_DEVICE) {
+             if (ButtonHit(touchX, touchY, 5)) { mode = S_CALIB_V; EichenVolt(); }//restart
+        else if (ButtonHit(touchX, touchY, 6)) {                                  //Reset
+          jsondata = ""; doc.clear();
+  
+          doc["Node"] = NAME_NODE; doc["Order"] = "Reset";
+
+          serializeJson(doc, jsondata); esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 100);  
+          Serial.print("Sending Ping:"); 
+          Serial.println(jsondata);    
+        } 
+        else if (ButtonHit(touchX, touchY, 7)) { ForceEichen(); }//pair
+        else if (ButtonHit(touchX, touchY, 8)) { ForceEichen(); }//Eichen 
+      }
+    touched = false;
+    }
 }
 void InitModule() {
   preferences.begin("JeepifyInit", true);
@@ -334,6 +425,13 @@ bool isSwitch(int Type) {
 }
 bool isSensor(int Type) {
   return(Type == BATTERY_SENSOR);
+}
+int  TouchQuarter(void) {
+  if ((Touch.x1<120) and (Touch.y1<120)) return 1;
+  if ((Touch.x1>120) and (Touch.y1<120)) return 2;
+  if ((Touch.x1<120) and (Touch.y1>120)) return 3;
+  if ((Touch.x1>120) and (Touch.y1>120)) return 4;
+  return 0;
 }
 int  TouchRead() {
   int TouchX, TouchY, Gesture;
