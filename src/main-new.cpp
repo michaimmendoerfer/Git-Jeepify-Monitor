@@ -3,8 +3,6 @@
 #include <SPI.h>
 //#include <FS.h>
 #include <SPIFFS.h>
-#include "TAMC_GT911.h"
-#include <Adafruit_ADS1X15.h>
 #include "../../renegade_members.h"
 #include <esp_now.h>
 #include <WiFi.h>
@@ -31,6 +29,24 @@
 
 #define LONG_PRESS_INTERVAL 300
 
+#define MAX_PERIPHERALS 5
+#define MAX_PEERS      10
+
+// Module-Types
+#define SWITCH_1_WAY        1
+#define SWITCH_2_WAY        2
+#define SWITCH_4_WAY        4
+#define SWITCH_8_WAY        8
+#define BATTERY_SENSOR      9
+#define MONITOR_ROUND       10
+#define MONITOR_BIG         11
+
+// Sensor-Types
+#define SENS_TYPE_SWITCH  1
+#define SENS_TYPE_AMP     2
+#define SENS_TYPE_VOLT    3
+#define NOT_FOUND        -1
+
 struct struct_Sensor {
     char        Name[20];
     int         Type;      //1=Switch, 2=Amp, 3=Volt
@@ -49,31 +65,19 @@ struct struct_Peer {
     u_int8_t   BroadcastAddress[6];
     uint32_t   TSLastSeen = 0;
     int        Type = 0;  // 
-    struct_Sensor S[MAX_SENSOR]; 
-} P[MAX_PEERS];
-
+    struct_Sensor S[MAX_PERIPHERALS]; 
+};
 struct struct_Button {
   int x, y, w, h;
   int TxtColor, BGColor;
   char Name[20];
   bool Status;
 };
-struct Touch_struct {
+struct struct_Touch {
   int x0, x1, y0, y1;
   uint32_t TSTouched;
   uint32_t TSReleased;
   int Gesture;
-};
-struct_Button Button[10] = {
-  { 25, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Volt", false},
-  { 95, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Amp",  false},
-  {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON", false},
-  { 60, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "DBG",  false},
-  {130, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "Pair", false},
-  { 25,  25, 70, 50, TFT_WHITE, TFT_BLACK, "Restart", false},
-  {145,  25, 70, 50, TFT_WHITE, TFT_BLACK, "Reset",   false},
-  { 25, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Pair",    false},
-  {145, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Eichen",  false}
 };
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
@@ -120,6 +124,8 @@ int    CalcField(int x, int y);
 void   AddVolt(int i);
 void   EichenVolt();
 
+bool   isPDC(int Type);
+bool   isBattery(int Type);
 bool   isSwitch(int Type);
 bool   isSensor(int Type);
 int    TouchQuarteer(void);
@@ -131,34 +137,59 @@ float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
 uint16_t rainbowColor(uint8_t spectrum);
 
-Touch_struct Touch;
+struct_Touch  Touch;
+struct_Peer   P[MAX_PEERS];
+struct_Button Button[10] = {
+  { 25, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Volt", false},
+  { 95, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Amp",  false},
+  {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON", false},
+  { 60, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "DBG",  false},
+  {130, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "Pair", false},
+  { 25,  25, 70, 50, TFT_WHITE, TFT_BLACK, "Restart", false},
+  {145,  25, 70, 50, TFT_WHITE, TFT_BLACK, "Reset",   false},
+  { 25, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Pair",    false},
+  {145, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Eichen",  false}
+};
 
-uint32_t TSTouch = 0;
+int ActivePeer   = 0;
+int ActiveSensor = 0;
+int Mode         = 0;
+
+float TempValue[8] = {0,0,0,0,0,0,0,0};
+
+uint32_t TSTouch    = 0;
+uint32_t TSMsgStart = 0;
+
+TFT_eSPI TFT              = TFT_eSPI();
+TFT_eSprite TFTBuffer     = TFT_eSprite(&TFT);
+TFT_eSprite TFTGauge      = TFT_eSprite(&TFT);
+
+CST816D TouchHW(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
 
 void setup() {
   InitModule();
 
 }
-loop() {
+void loop() {
   if (millis() - TSTouch > TOUCH_INTERVAL) {
     if (TouchRead() > 1) {
       //S_MENU
       switch (Mode) {
         case S_MENU    : 
           switch (TouchQuarter()) {
-            case 1: Mode = S_SENSOR1; break;
-            case 2: Mode = S_SWITCH1; break;
-            case 3: Mode = S_SWITCH4; break;
-            case 4: Mode = S_SETTING; break;
+            case 0: Mode = S_SENSOR1; break;
+            case 1: Mode = S_SWITCH1; break;
+            case 2: Mode = S_SWITCH4; break;
+            case 3: Mode = S_SETTING; break;
           }
           break;
         case S_SWITCH1 : ToggleSwitch(1); break;
         case S_SWITCH4 : 
           switch (TouchQuarter()) {
-            case 1: ToggleSwitch(0); break;
-            case 2: ToggleSwitch(1); break;
-            case 3: ToggleSwitch(2); break;
-            case 4: ToggleSwitch(3); break;
+            case 0: ToggleSwitch(0); break;
+            case 1: ToggleSwitch(1); break;
+            case 2: ToggleSwitch(2); break;
+            case 3: ToggleSwitch(3); break;
           }
           break;
         case S_SENSOR1 : 
@@ -184,70 +215,10 @@ loop() {
         case S_JSON    : ShowJSON();    break;
         case S_SETTING : ShowSetting(); break;
       }
-              if      (gesture == 1) modeUp();          //swipe up 
-      else if (gesture == 2) modeDown();        //swipe down 
-      else if (gesture == 3) modeLeft();        //swipe left
-      else if (gesture == 4) modeRight();       //swipe right
-      
-      else if (mode == S_SW_0) ToggleSwitch(AktPDC, 0);
-      else if (mode == S_SW_1) ToggleSwitch(AktPDC, 1);
-      else if (mode == S_SW_2) ToggleSwitch(AktPDC, 2);
-      else if (mode == S_SW_3) ToggleSwitch(AktPDC, 3);
-      
-      else if (mode == S_SW_ALL) {
-             if (touchX<120 and touchY<120) ToggleSwitch(AktPDC, 0);
-        else if (touchX>120 and touchY<120) ToggleSwitch(AktPDC, 1);
-        else if (touchX<120 and touchY>120) ToggleSwitch(AktPDC, 2);
-        else if (touchX>120 and touchY>120) ToggleSwitch(AktPDC, 3);
-      }
-      else if (mode == S_MENU) {
-             if (touchX<120 and touchY<120) mode = S_BAT_EXT_A; 
-        else if (touchX>120 and touchY<120) mode = S_SW_0;
-        else if (touchX<120 and touchY>120) mode = S_SW_ALL;
-        else if (touchX>120 and touchY>120) mode = S_TXT_ALL;
-      }
-      else if (mode == S_TXT_ALL) {
-             if (ButtonHit(touchX, touchY, 0)) { mode = S_CALIB_V; EichenVolt(); }
-        else if (ButtonHit(touchX, touchY, 1)) { ForceEichen(); }
-        else if (ButtonHit(touchX, touchY, 2)) { mode = S_DBG_JSON; }
-        else if (ButtonHit(touchX, touchY, 3)) { 
-          ScreenChanged = true;
-          oldMode = S_BAT_BAT_V; // for refresh
-          Debug = !Debug; 
-          preferences.begin("Jeepify", false);
-          preferences.putBool("Debug", Debug);
-          preferences.end();
-        }
-        else if (ButtonHit(touchX, touchY, 4)) { 
-          if (gesture == 12) { ClearPeers(); }
-          else {
-            ScreenChanged = true;
-            Pairing = !Pairing;
-            if (Pairing) TimestampPair = millis();
-            else         TimestampPair = 0;
-          }
-        }
-      }
-      else if (mode == S_CALIB_V) {
-        AddVolt(CalcField(touchX, touchY));
-      }
-      else if (mode == S_DEVICE) {
-             if (ButtonHit(touchX, touchY, 5)) { mode = S_CALIB_V; EichenVolt(); }//restart
-        else if (ButtonHit(touchX, touchY, 6)) {                                  //Reset
-          jsondata = ""; doc.clear();
-  
-          doc["Node"] = NAME_NODE; doc["Order"] = "Reset";
-
-          serializeJson(doc, jsondata); esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 100);  
-          Serial.print("Sending Ping:"); 
-          Serial.println(jsondata);    
-        } 
-        else if (ButtonHit(touchX, touchY, 7)) { ForceEichen(); }//pair
-        else if (ButtonHit(touchX, touchY, 8)) { ForceEichen(); }//Eichen 
-      }
-    touched = false;
     }
+  }
 }
+
 void InitModule() {
   preferences.begin("JeepifyInit", true);
   Debug     = preferences.getBool("Debug", true);
@@ -400,6 +371,172 @@ void ClearInit() {
     Serial.println("JeepifyInit cleared...");
   preferences.end();
 }
+void ShowSensor1() {
+  ScreenChanged = true;             
+
+  TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+  TFTBuffer.setTextDatum(MC_DATUM);
+
+  if (isSensorAmp(P[ActivePeer].S[ActiveSensor].Type)) {
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);       
+    RingMeter(TempValue[0], 0, 30, "Amp", P[ActivePeer].S[ActiveSensor].Name, GREEN2RED);
+  }
+  if (isSensorVolt(P[ActivePeer].S[ActiveSensor].Type)) {
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+    RingMeter(TempValue[0], 0, 15, "Volt", P[ActivePeer].S[ActiveSensor].Name, GREEN2RED);
+  }
+  if (isSwitch    (P[ActivePeer].S[ActiveSensor].Type)) {
+    TFTBuffer.pushImage(0,0, 240, 240, Btn);                    
+  
+    TFTBuffer.loadFont(AA_FONT_LARGE); 
+
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    
+    TFTBuffer.drawString(P[ActivePeer].S[ActiveSensor].Name, 120,130);
+
+    TFTBuffer.unloadFont(); 
+
+    TFTBuffer.loadFont(AA_FONT_SMALL);
+    TFTBuffer.drawString(P[ActivePeer].Name, 120,160);
+    TFTBuffer.unloadFont();
+
+         if (P[ActivePeer].S[ActiveSensor].Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
+    else if (P[ActivePeer].S[ActiveSensor].Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
+
+    TSScreenRefresh = millis();
+  }
+
+  P[ActivePeer].S[ActiveSensor].OldValue = P[ActivePeer].S[ActiveSensor].Value;  
+}
+void ShowSensor4() {
+  ScreenChanged = true;
+  TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+  
+  TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+  TFTBuffer.setTextDatum(MC_DATUM);
+  
+  int Si = 0;
+  for (int Row=0; Row<2; Row++) {
+    for (int Col=0; Col<2; Col++) {
+      if (isSensorAmp (P[ActivePeer].S[Si].Type)) {
+        TFTBuffer.loadFont(AA_FONT_LARGE); 
+        TFTBuffer.drawString(P[ActivePeer].S[Si].Name,  60+Col*120, 30+Row*120);
+        //Format Output
+        TFTBuffer.drawString(P[ActivePeer].S[Si].Value, 60+Col*120, 90+Row*120);
+        TFTBuffer.unloadFont();
+      }
+      if (isSensorVolt(P[ActivePeer].S[Si].Type)) {
+        TFTBuffer.loadFont(AA_FONT_LARGE); 
+        TFTBuffer.drawString(P[ActivePeer].S[Si].Name,  60+Col*120, 30+Row*120)
+        //Format Output
+        TFTBuffer.drawString(P[ActivePeer].S[Si].Value, 60+Col*120, 90+Row*120)
+        TFTBuffer.unloadFont();
+      }
+      if (isSwitch    (P[ActivePeer].S[Si].Type)) {
+        TFTBuffer.loadFont(AA_FONT_SMALL); 
+        TFTGaugeAmp.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
+
+        TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+        TFTBuffer.drawString(P[ActivePeer].S[Si].Name, 70+Col*100, 85+Row*90);
+        TFTBuffer.unloadFont();
+      }
+      Si++;
+    }
+  }
+  TFTBuffer.loadFont(AA_FONT_SMALL); 
+  TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+  TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
+  TFTBuffer.unloadFont(); 
+}
+void ScreenUpdate() {
+  if (!TSMsgStart) {
+    switch (Mode) {
+      case S_SENSOR1:
+        if ((mode != oldMode) or (P[ActivePeer].S[ActiveSensor].Changed)) {
+          noInterrupts(); 
+            TempValue[0] = P[ActivePeer].S[ActiveSensor].Value; 
+            P[ActivePeer].S[ActiveSensor].Changed = false; 
+          interrupts();
+          char Unit[20];
+          if      (isSensorAMP (P[ActivePeer].S[ActiveSensor].Type)) {
+            strcpy (Unit, "Amp");
+            RingMeter(TempValue[0], 0, 30, Unit, P[ActivePeer].S[ActiveSensor].Name, GREEN2RED);
+          }
+          else if (isSensorVolt(P[ActivePeer].S[ActiveSensor].Type)) {
+            strcpy (Unit, "Volt");
+            RingMeter(TempValue[0], 0, 16, Unit, P[ActivePeer].S[ActiveSensor].Name, GREEN2RED);
+          }
+          else if (isSwitch    (P[ActivePeer].S[ActiveSensor].Type)) {
+            ShowSwitch1();
+          }
+          oldMode = mode;
+        }
+        break;          
+      case S_SENSOR4:
+        if ((mode != oldMode) or 
+          (P[ActivePeer].S[0].Changed) or 
+          (P[ActivePeer].S[1].Changed) or 
+          (P[ActivePeer].S[2].Changed) or 
+          (P[ActivePeer].S[3].Changed)) {
+            
+          noInterrupts(); 
+            for (int Si=0; Si<4; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value; 
+            for (int Si=0; Si<4; Si++) P[ActivePeer].S[Si].Changed = false; 
+          interrupts();
+          
+          ShowSensor4();
+          
+          oldMode = mode;
+          for (int Si=0; Si<4; Si++) P[ActivePeer].S[i].Changed = false;
+        }
+        break;       
+      case S_SWITCH8:
+        if ((mode != oldMode) or 
+          (P[ActivePeer].S[0].Changed) or 
+          (P[ActivePeer].S[1].Changed) or 
+          (P[ActivePeer].S[2].Changed) or 
+          (P[ActivePeer].S[3].Changed) or
+          (P[ActivePeer].S[4].Changed) or 
+          (P[ActivePeer].S[5].Changed) or 
+          (P[ActivePeer].S[6].Changed) or 
+          (P[ActivePeer].S[7].Changed)) {
+           
+          noInterrupts(); 
+            for (int Si=0; Si<8; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value; 
+            for (int Si=0; Si<8; Si++) P[ActivePeer].S[Si].Changed = false; 
+          interrupts();
+          
+          ShowSensor8();
+          
+          oldMode = mode;
+          for (int Si=0; Si<8; Si++) P[ActivePeer].S[i].Changed = false;
+        }
+        break;          
+      case S_JSON   :  ShowJSON();    oldMode = mode; break;  
+      case S_DEVICES:   ShowDevices(); oldMode = mode; break;
+      case S_CALIB_V:   EichenVolt();  oldMode = mode; break;  
+      case S_MENU:      
+        if (mode != oldMode) {
+          ShowMenu(); 
+          oldMode = mode; 
+        }
+      break;        
+    }
+
+    PushTFT();
+  }
+}
+
+}
+
+void ShowMenu() {
+  if (mode != oldMode) TSScreenRefresh = millis();
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (mode != oldMode)) {
+    ScreenChanged = true;
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
+    TSScreenRefresh = millis();
+  }
 void PushTFT() {
   if (ScreenChanged) {
     Serial.print("ScreenUpdate: ");
@@ -420,18 +557,103 @@ void SetDebugMode(bool Mode) {
     if (preferences.getBool("Debug", false) != Debug) preferences.putBool("Debug", Debug);
   preferences.end();
 }
-bool isSwitch(int Type) {
+
+bool isPDC(int Type) {
   return ((Type == SWITCH_1_WAY) or (Type == SWITCH_2_WAY) or (Type == SWITCH_4_WAY) or (Type == SWITCH_8_WAY));      
 }
-bool isSensor(int Type) {
+bool isPDC1(int Type) {
+  return (Type == SWITCH_1_WAY);      
+}
+bool isPDC2(int Type) {
+  return (Type == SWITCH_2_WAY);      
+}
+bool isPDC4(int Type) {
+  return (Type == SWITCH_4_WAY);      
+}
+bool isPDC8(int Type) {
+  return (Type == SWITCH_8_WAY);      
+}
+bool isBattery(int Type) {
   return(Type == BATTERY_SENSOR);
 }
+bool isSwitch(int Type) {
+  return (Type == SENS_TYPE_SWITCH);      
+}
+bool isSensor(int Type) {
+  return((Type == SENS_TYPE_AMP) or (Type == SENS_TYPE_VOLT));
+}
+bool isSensorVolt(int Type) {
+  return (Type == SENS_TYPE_VOLT);
+}
+bool isSensorAMP(int Type) {
+  return (Type == SENS_TYPE_AMP);
+}
+int  NextSensor(){
+  int SNr = ActiveSensor;
+  
+  for (int i=0; i<MAX_PERIPHERALS; i++) {
+    SNr++;
+    if (SNr == MAX_PERIPHERALS) SNr = 0;
+    if ((P[ActivePeer].S[SNr].Type == SENS_TYPE_AMP) or (P[ActivePeer].S[SNr].Type == SENS_TYPE_VOLT)) return SNr;
+  }
+  return NOT_FOUND;
+}
+int  PrevSensor() {
+  int SNr = ActiveSensor;
+  
+  for (int i=0; i<MAX_PERIPHERALS; i++) {
+    SNr--;
+    if (SNr == -1) SNr = MAX_PERIPHERALS-1;
+    if ((P[ActivePeer].S[SNr].Type == SENS_TYPE_AMP) or (P[ActivePeer].S[SNr].Type == SENS_TYPE_VOLT)) return SNr;
+  }
+  return NOT_FOUND;
+}
+int  NextPDC() {
+  int PNr = ActivePeer;
+  
+  for (int i=0; i<MAX_PEERS; i++) {
+    PNr++;
+    if (PNr == MAX_PEERS) PNr = 0;
+    if (isPDC(P[PNr].Type)) return PNr;
+  }
+  return NOT_FOUND;
+}
+int  PrevPDC() {
+  int PNr = ActivePeer;
+  
+  for (int i=0; i<MAX_PEERS; i++) {
+    PNr--;
+    if (PNr == -1) PNr = MAX_PEERS-1;
+    if (isPDC(P[PNr].Type)) return PNr;
+  }
+  return NOT_FOUND;
+}
+int  NextBat() {
+  int PNr = ActivePeer;
+  
+  for (int i=0; i<MAX_PEERS; i++) {
+    PNr++;
+    if (PNr == MAX_PEERS) PNr = 0;
+    if (isBattery(P[PNr].Type)) return PNr;
+  }
+  return NOT_FOUND;
+}
+int  PrevBat() {
+  int PNr = ActivePeer;
+  
+  for (int i=0; i<MAX_PEERS; i++) {
+    PNr--;
+    if (PNr == -1) PNr = MAX_PEERS-1;
+    if (isBattery(P[PNr].Type)) return PNr;
+  }
+  return NOT_FOUND;
+}
 int  TouchQuarter(void) {
-  if ((Touch.x1<120) and (Touch.y1<120)) return 1;
-  if ((Touch.x1>120) and (Touch.y1<120)) return 2;
-  if ((Touch.x1<120) and (Touch.y1>120)) return 3;
-  if ((Touch.x1>120) and (Touch.y1>120)) return 4;
-  return 0;
+  if ((Touch.x1<120) and (Touch.y1<120)) return 0;
+  if ((Touch.x1>120) and (Touch.y1<120)) return 1;
+  if ((Touch.x1<120) and (Touch.y1>120)) return 2;
+  if ((Touch.x1>120) and (Touch.y1>120)) return 3;
+  return NOT_FOUND;
 }
 int  TouchRead() {
   int TouchX, TouchY, Gesture;
