@@ -23,9 +23,10 @@
 #define SWIPE_RIGHT 11
 #define SWIPE_DOWN  12
 #define SWIPE_UP    13
-#define LONG_PRESS   4
-#define DBLCLICK     3
-#define CLICK        2
+#define LONG_PRESS   5
+#define DBLCLICK     4
+#define CLICK        3
+#define HOLD         2
 #define TOUCHED      1
 
 #define LONG_PRESS_INTERVAL 300
@@ -162,7 +163,7 @@ void InitModule() {
   SleepMode = preferences.getBool("SleepMode", false);
   preferences.end();
 
-  Touch.begin();
+  TouchHW.begin();
 
   Serial.begin(74880);
 
@@ -335,21 +336,50 @@ bool isSensor(int Type) {
   return(Type == BATTERY_SENSOR);
 }
 int  TouchRead() {
-  TSTouch = millis();
-    
-    if (TouchRead() > 1) { //
+  int TouchX, TouchY, Gesture;
+  int ret = 0;
 
-    };
-    touchX = 240-touchX; 
+  bool TouchContact = TouchHW.getTouch(&TouchX, &TouchY, &Gesture);
+  TouchX = 240-TouchX; 
 
-    if (TouchContact) {
-      touched = true;
-    }
-    else if (touched) {
-      if      (gesture == 1) modeUp();          //swipe up 
-      else if (gesture == 2) modeDown();        //swipe down 
-      else if (gesture == 3) modeLeft();        //swipe left
-      else if (gesture == 4) modeRight    
+  //frisch berührt
+  if (TouchContact and !Touch.TSTouched) {       
+    Touch.TSTouched = millis();
+    Touch.x0 = TouchX;
+    Touch.y0 = TouchY;
+    Touch.Gesture = 0;
+    Touch.TSReleased = 0;
+    ret = TOUCHED;
+  }
+  //Finger bleibt drauf
+  else if (TouchContact and Touch.TSTouched) {   
+    Touch.x0 = TouchX;
+    Touch.y0 = TouchY;
+    Touch.Gesture = 0;
+    Touch.TSReleased = 0;
+    ret = HOLD;
+  }
+  //Release
+  else if (!TouchContact and Touch.TSTouched) {  
+    Touch.TSReleased = millis();
+    Touch.x1 = TouchX;
+    Touch.y1 = TouchY;
+          
+         if ((Touch.x1-Touch.x0) > 50)  { Touch.Gesture = SWIPE_LEFT;  ret = SWIPE_LEFT; }                      // swipe left
+    else if ((Touch.x1-Touch.x0) < -50) { Touch.Gesture = SWIPE_RIGHT; ret = SWIPE_RIGHT; }                     // swipe right
+    else if ((Touch.y1-Touch.y0) > 50)  { Touch.Gesture = SWIPE_DOWN;  ret = SWIPE_DOWN; }                      // swipe down
+    else if ((Touch.y1-Touch.y0) < -50) { Touch.Gesture = SWIPE_UP;    ret = SWIPE_UP; }                        // swipe up
+    else if ((Touch.TSReleased - Touch.TSTouched) > LONG_PRESS_INTERVAL) {                                      // longPress
+      Touch.Gesture = LONG_PRESS;
+      ret = LONG_PRESS;     
+    }  
+  }                                                                    
+  //nicht berührt
+  else (!TouchContact and !Touch.TSTouched) {  
+    ret = 0;
+    T.TSTouched  = 0;
+    T.TSReleased = 0;
+  }
 }
 void  PrintMAC(const uint8_t * mac_addr){
   char macStr[18];
