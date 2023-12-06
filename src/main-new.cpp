@@ -128,8 +128,9 @@ bool   isPDC(int Type);
 bool   isBattery(int Type);
 bool   isSwitch(int Type);
 bool   isSensor(int Type);
-int    TouchQuarteer(void);
+bool   SensorChanged(int Start, int Stop=0);
 
+int    TouchQuarter(void);
 int    TouchRead();
 
 void   PrintMAC(const uint8_t * mac_addr);
@@ -150,6 +151,8 @@ struct_Button Button[10] = {
   { 25, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Pair",    false},
   {145, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Eichen",  false}
 };
+
+Preferences preferences;
 
 int ActivePeer   = 0;
 int ActiveSensor = 0;
@@ -452,8 +455,8 @@ void ShowSensor4() {
 void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
-      case S_SENSOR1:
-        if ((mode != oldMode) or (P[ActivePeer].S[ActiveSensor].Changed)) {
+      case S_SENSOR1: 
+        if ((Mode != OldMode) or (SensorChanged(ActiveSensor))) {
           noInterrupts(); 
             TempValue[0] = P[ActivePeer].S[ActiveSensor].Value; 
             P[ActivePeer].S[ActiveSensor].Changed = false; 
@@ -474,11 +477,7 @@ void ScreenUpdate() {
         }
         break;          
       case S_SENSOR4:
-        if ((mode != oldMode) or 
-          (P[ActivePeer].S[0].Changed) or 
-          (P[ActivePeer].S[1].Changed) or 
-          (P[ActivePeer].S[2].Changed) or 
-          (P[ActivePeer].S[3].Changed)) {
+        if ((Mode != OldMode) or (SensorChanged(0,3))) {
             
           noInterrupts(); 
             for (int Si=0; Si<4; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value; 
@@ -491,16 +490,8 @@ void ScreenUpdate() {
           for (int Si=0; Si<4; Si++) P[ActivePeer].S[i].Changed = false;
         }
         break;       
-      case S_SWITCH8:
-        if ((mode != oldMode) or 
-          (P[ActivePeer].S[0].Changed) or 
-          (P[ActivePeer].S[1].Changed) or 
-          (P[ActivePeer].S[2].Changed) or 
-          (P[ActivePeer].S[3].Changed) or
-          (P[ActivePeer].S[4].Changed) or 
-          (P[ActivePeer].S[5].Changed) or 
-          (P[ActivePeer].S[6].Changed) or 
-          (P[ActivePeer].S[7].Changed)) {
+      case S_SENSOR8:
+        if ((Mode != OldMode) or (SensorChanged(0,7))) {
            
           noInterrupts(); 
             for (int Si=0; Si<8; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value; 
@@ -513,23 +504,19 @@ void ScreenUpdate() {
           for (int Si=0; Si<8; Si++) P[ActivePeer].S[i].Changed = false;
         }
         break;          
-      case S_JSON   :  ShowJSON();    oldMode = mode; break;  
-      case S_DEVICES:   ShowDevices(); oldMode = mode; break;
-      case S_CALIB_V:   EichenVolt();  oldMode = mode; break;  
+      case S_JSON   :   ShowJSON();    OldMode = Mode; break;  
+      case S_DEVICES:   ShowDevices(); OldMode = Mode; break;
+      case S_CALIB_V:   EichenVolt();  OldMode = Mode; break;  
       case S_MENU:      
-        if (mode != oldMode) {
+        if (Mode != OldMode) {
           ShowMenu(); 
-          oldMode = mode; 
+          OldMode = Mode; 
         }
       break;        
     }
-
     PushTFT();
   }
 }
-
-}
-
 void ShowMenu() {
   if (mode != oldMode) TSScreenRefresh = millis();
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (mode != oldMode)) {
@@ -537,6 +524,7 @@ void ShowMenu() {
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
     TSScreenRefresh = millis();
   }
+}
 void PushTFT() {
   if (ScreenChanged) {
     Serial.print("ScreenUpdate: ");
@@ -587,6 +575,12 @@ bool isSensorVolt(int Type) {
 }
 bool isSensorAMP(int Type) {
   return (Type == SENS_TYPE_AMP);
+}
+bool SensorChanged(int Start, int Stop=0) {
+  int ret = false;
+  if (Stop == 0) Stop = Start;
+  for (int Si=Start, Si++, Si<Stop+1) if (P[ActivePeer].S[Si].Changed) ret = true;
+  return ret;
 }
 int  NextSensor(){
   int SNr = ActiveSensor;
