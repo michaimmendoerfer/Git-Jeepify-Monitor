@@ -1,8 +1,9 @@
 #include <Arduino.h>
+#include "../../jeepify.h"
 #include <TFT_eSPI.h>
-#include <SPI.h>
-#include <SPIFFS.h>
-#include "../../renegade_members.h"
+//#include <SPI.h>
+//#include <SPIFFS.h>
+//#include "../../renegade_members.h"
 #include "pix.h"
 #include <esp_now.h>
 #include <WiFi.h>
@@ -14,85 +15,9 @@
 #include "NotoSansMonoSCB20.h"
 
 #define NODE_NAME "Jeep_Monitor_V2"
-#define NODE_TYPE SWITCH_4_WAY
+#define NODE_TYPE MONITOR_ROUND
 
 #define VERSION   "V 0.01"
-
-#define SWIPE_LEFT  10
-#define SWIPE_RIGHT 11
-#define SWIPE_DOWN  12
-#define SWIPE_UP    13
-#define LONG_PRESS   5
-#define DBLCLICK     4
-#define CLICK        3
-#define HOLD         2
-#define TOUCHED      1
-
-#define LONG_PRESS_INTERVAL 300
-
-#define MAX_PERIPHERALS 5
-#define MAX_PEERS      10
-
-// Module-Types
-#define SWITCH_1_WAY        1
-#define SWITCH_2_WAY        2
-#define SWITCH_4_WAY        4
-#define SWITCH_8_WAY        8
-#define BATTERY_SENSOR      9
-#define MONITOR_ROUND       10
-#define MONITOR_BIG         11
-
-// Sensor-Types
-#define SENS_TYPE_SWITCH  1
-#define SENS_TYPE_AMP     2
-#define SENS_TYPE_VOLT    3
-#define NOT_FOUND        99
-
-// Screens
-#define S_MENU            1
-#define S_SENSOR1       101
-#define S_SENSOR4       104
-#define S_SWITCH1       111
-#define S_SWITCH4       114
-#define S_SWITCH8       118
-#define S_JSON          110
-#define S_PEER          120
-#define S_PEERS         121
-#define S_SETTING       130
-
-
-struct struct_Sensor {
-    char        Name[20];
-    int         Type;      //1=Switch, 2=Amp, 3=Volt
-    // Sensor
-    bool        isADS;
-    int         IOPort;
-    float       NullWert;
-    float       VperAmp;
-    int         Vin;
-    float       Value;
-    float       OldValue;
-    bool        Changed;
-};
-struct struct_Peer {
-    char       Name[20] = {};
-    u_int8_t   BroadcastAddress[6];
-    uint32_t   TSLastSeen = 0;
-    int        Type = 0;  // 
-    struct_Sensor S[MAX_PERIPHERALS]; 
-};
-struct struct_Button {
-  int x, y, w, h;
-  int TxtColor, BGColor;
-  char Name[20];
-  bool Status;
-};
-struct struct_Touch {
-  uint16_t x0, x1, y0, y1;
-  uint32_t TSTouched;
-  uint32_t TSReleased;
-  uint16_t Gesture;
-};
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
@@ -105,42 +30,40 @@ void   RegisterPeers();
 void   ClearPeers();
 void   ClearInit();
 
+void   SendPing();
+
 void   SetSleepMode(bool Mode);
 void   SetDebugMode(bool Mode);
 
-int    modeUp(); 
-int    modeDown(); 
-int    modeLeft(); 
-int    modeRight(); 
+void   DrawButton(int z);
+bool   ButtonHit(int x, int y, int z);
+int    CalcField(int x, int y);
+void   AddVolt(int i);
+void   EichenVolt();
+
+void   ToggleSwitch (int Si);
 
 void   SetMsgIndicator();
 void   ScreenUpdate();
 void   PushTFT();
-
-void   DrawButton(int z);
-bool   ButtonHit(int x, int y, int z);
-
-void   ToggleSwitch (int Si);
 void   ShowSwitch1(int);
 void   ShowSwitch4();
-
+void   ShowSensor1(int Si);
 void   ShowMenu();
 void   ShowJSON(void);
 void   ShowPeer(int);
 void   ShowPeers();
 
 int    RingMeter(float value, float vmin, float vmax, const char *units, const char *bez, byte scheme);
-void   LinearMeter(int val, int x, int y, int w, int h, int g, int n, byte s);
 
-int    CalcField(int x, int y);
-void   AddVolt(int i);
-void   EichenVolt();
-
-bool   SensorChanged(int Start, int Stop=0);
+bool   ReadyToPair = false;
+bool   SensorChanged(int Start, int Stop=99);
 bool   isPDC(int Type);
 bool   isBat(int Type);
 bool   isSwitch(int Type);
 bool   isSensor(int Type);
+bool   isSensorAmp (int Type);
+bool   isSensorVolt(int Type);
 int    NextSensor();
 int    PrevSensor();
 int    NextSwitch();
@@ -184,16 +107,36 @@ int UpdateCount  =  0;
 bool ScreenChanged = true;
 bool AvailPDC = false;
 bool AvailBat = false;
-bool ReadyToPair = false;
 bool Debug = true;
 bool SleepMode = false;
+
+int   ButtonRd   = 22;
+int   ButtonGapX = 6;
+int   ButtonGapY = 6;
+float VoltCalib;
+int   VoltCount;
 
 float TempValue[8] = {0,0,0,0,0,0,0,0};
 
 uint32_t TSTouch         = 0;
-uint32_t TSPair          = 0;
+uint32_t TSPing          = 0;
 uint32_t TSMsgStart      = 0;
 uint32_t TSScreenRefresh = 0;
+volatile uint32_t TSMsgRcv  = 0;
+volatile uint32_t TSMsgPDC  = 0;
+volatile uint32_t TSMsgBat  = 0;
+volatile uint32_t TSMsgVolt = 0;
+volatile uint32_t TSMsgEich = 0;
+volatile uint32_t TSPair    = 0;
+
+bool MsgBatAktiv  = false;
+bool MsgPDCAktiv  = false;
+bool MsgVoltAktiv = false;
+bool MsgEichAktiv = false;
+bool MsgPairAktiv = false;
+
+StaticJsonDocument<300> doc;
+String jsondata;
 
 TFT_eSPI TFT               = TFT_eSPI();
 TFT_eSprite TFTBuffer      = TFT_eSprite(&TFT);
@@ -227,8 +170,17 @@ void setup() {
   TSScreenRefresh = millis();
 }
 void loop() {
+  if ((TSMsgStart) and (millis() - TSMsgStart > LOGO_INTERVAL)) {
+    Mode = S_MENU;
+    TSMsgStart = 0;
+  }
+  if (millis() - TSPing > PING_INTERVAL) {
+    TSPing = millis();
+    SendPing();
+  }
   if (millis() - TSTouch > TOUCH_INTERVAL) {
-    if (TouchRead() > 1) {
+    if (ReadyToPair) Mode = S_PAIRING;
+    else if (TouchRead() > 1) {
       //S_MENU
       switch (Mode) {
         case S_MENU    : 
@@ -280,6 +232,128 @@ void loop() {
       }
     }
   }
+}
+
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  char* buff = (char*) incomingData;   
+  String BufS;
+
+  jsondata = "";  jsondata = String(buff);                 
+  Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(jsondata);    
+  
+  DeserializationError error = deserializeJson(doc, jsondata);
+
+  if (!error) {
+    TSMsgRcv = millis();
+    bool NodeBekannt = false;
+    int PNr = 0;
+
+    for (PNr=0; PNr<MAX_PEERS; PNr++) { 
+      if (doc["Node"] == P[PNr].Name) {
+        NodeBekannt = true; 
+        P[PNr].TSLastSeen = millis();
+        break; 
+      }
+    }    
+    if (NodeBekannt) {      
+      if (isBat(P[PNr].Type)) TSMsgBat = TSMsgRcv;
+      if (isPDC(P[PNr].Type)) TSMsgPDC = TSMsgRcv;
+      
+      for (int i=0; i<MAX_PERIPHERALS; i++) {
+        if (doc.containsKey(P[PNr].S[i].Name)) {
+          float TempSensor = (float)doc[P[PNr].S[i].Name];
+      
+          if (TempSensor != P[PNr].S[i].Value) {
+            P[PNr].S[i].OldValue = P[PNr].S[i].Value;
+            P[PNr].S[i].Value = TempSensor;
+            P[PNr].S[i].Changed = true;
+          }
+        }
+      } 
+    } 
+    else if ((ReadyToPair) and (doc.containsKey("Pairing"))) {
+      bool PairingSuccess = false;
+      char Buf[10] = {};
+      char BufB[5] = {};
+
+      if (doc["Pairing"] == "add me") { 
+        //for (int i = 0; i < 6; i++ ) TempBroadcast[i] = (uint8_t) mac[i];
+    
+        bool exists = esp_now_is_peer_exist(mac);
+        if (exists) { 
+          PrintMAC(mac); Serial.println(" already exists...");
+          PairingSuccess = true;
+          
+          jsondata = "";  doc.clear();
+          
+          doc["Node"]    = NODE_NAME;   
+          doc["Pairing"] = "you are paired";
+
+          serializeJson(doc, jsondata);  
+          esp_now_send(P[PNr].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
+          Serial.print("Sending you are paired"); 
+          Serial.println(jsondata);
+        }
+        else { // neuer Peer
+          for (PNr=0; PNr<MAX_PEERS; PNr++) {
+            if ((P[PNr].Type == 0) and (!PairingSuccess)) {
+              
+              for (int b = 0; b < 6; b++ ) P[PNr].BroadcastAddress[b] = mac[b];
+              strcpy(P[PNr].Name, doc["Node"]);
+              P[PNr].Type = doc["Type"];
+              P[PNr].TSLastSeen = millis();
+              
+              for (int Si=0; Si<MAX_PERIPHERALS; Si++=) {
+                sprintf(BufB, "%d", Si); 
+                strcpy(Buf, "S"); strcat(Buf, BufB);
+                if (doc.containsKey(Buf)) strcpy(P[PNr].S[Si].Name, doc[Buf]);
+              }   
+
+              esp_now_peer_info_t peerInfo;
+              peerInfo.channel = 0;
+              peerInfo.encrypt = false;
+              memset(&peerInfo, 0, sizeof(peerInfo));
+
+              for (int ii = 0; ii < 6; ++ii ) peerInfo.peer_addr[ii] = (uint8_t) mac[ii];
+              if (esp_now_add_peer(&peerInfo) != ESP_OK) { 
+                Serial.println("Failed to add peer");
+              }
+              else { 
+                Serial.println(P[PNr].Name); 
+                PrintMAC(mac); Serial.println(" peer added...");
+                
+                PairingSuccess = true; 
+                jsondata = "";  doc.clear();
+                
+                doc["Node"]    = NODE_NAME;   
+                doc["Pairing"] = "you are paired";
+                doc["Type"]    = MONITOR_ROUND;
+
+                serializeJson(doc, jsondata);  
+                esp_now_send(P[PNr].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
+                Serial.print("Sending you are paired"); 
+                Serial.println(jsondata);
+              }
+            }
+          }
+          if (!PairingSuccess) { PrintMAC(mac); Serial.println(" adding failed..."); } 
+          else  {
+            Serial.println("Saving Peers...");
+            SavePeers();
+          }
+        }
+      }
+    }
+  }
+  else {                                            // Error
+    Serial.print(F("deserializeJson() failed: "));  //Just in case of an ERROR of ArduinoJSon
+    Serial.println(error.f_str());
+    return;
+  }
+}
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { 
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 
 void InitModule() {
@@ -440,6 +514,35 @@ void ClearInit() {
     Serial.println("JeepifyInit cleared...");
   preferences.end();
 }
+void SendPing() {
+  jsondata = "";  
+  doc.clear();
+  
+  doc["Node"] = NODE_NAME;   
+  doc["Order"] = "stay alive";
+
+  if (ReadyToPair) {
+    doc["Pairing"] = "aktiv";
+  }
+
+  serializeJson(doc, jsondata);  
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) esp_now_send(P[PNr].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
+  Serial.print("Sending Ping:"); 
+  Serial.println(jsondata);      
+}
+void DrawButton(int z) {
+  TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
+  TFTBuffer.setTextDatum(MC_DATUM);
+
+  if (Button[z].Status) TFTBuffer.fillSmoothRoundRect(Button[z].x, Button[z].y, Button[z].w, Button[z].h, 10, Button[z].TxtColor, Button[z].BGColor);
+  TFTBuffer.drawSmoothRoundRect(Button[z].x, Button[z].y, 10, 8, Button[z].w, Button[z].h, Button[z].TxtColor, Button[z].BGColor);
+  TFTBuffer.drawString(Button[z].Name, Button[z].x+Button[z].w/2, Button[z].y+Button[z].h/2);  
+
+   TFTBuffer.unloadFont();
+}
+bool ButtonHit(int x, int y, int z) {
+  return ( ((x>Button[z].x) and (x<Button[z].x+Button[z].w) and (y>Button[z].y) and (y<Button[z].y+Button[z].h)) );
+}
 void ShowSensor1(int SNr) {
   if (Mode != OldMode) TSScreenRefresh = millis();
 
@@ -487,6 +590,22 @@ void ShowSwitch1(int SNr) {
 
     P[ActivePeer].S[SNr].OldValue = P[ActivePeer].S[ActiveSens].Value; 
   } 
+}
+void ShowPairingScreen() {
+  if (Mode != OldMode) TSScreenRefresh = millis();
+
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;             
+
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.loadFont(AA_FONT_LARGE); 
+
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
+
+    TFTBuffer.drawString("Pairing...", 120, 120);
+    TSScreenRefresh = millis(); 
+  }
 }
 void ShowSensor4(float Value[4]) {
   if (Mode != OldMode) TSScreenRefresh = millis();
@@ -552,6 +671,104 @@ void ShowSwitch4() {
   TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
   TFTBuffer.unloadFont(); 
 }
+void ShowJSON() {
+  if (Mode != OldMode) TSScreenRefresh = millis();
+
+  if (((TSScreenRefresh - millis() > SCREEN_INTERVAL) and (jsondata != "") or (Mode != OldMode))) {
+    ScreenChanged = true;
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+    TFTBuffer.loadFont(AA_FONT_SMALL);
+    
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+    TFTBuffer.setTextDatum(TC_DATUM);
+    
+    TFTBuffer.drawString("Debug JSON", 120, 200); 
+  
+    int sLength = jsondata.length();
+
+    if (sLength) {
+      int len = 20;
+      int Abstand = 20;
+      int sLength = jsondata.length();
+
+      TFTBuffer.setTextDatum(MC_DATUM);
+      TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
+    
+      for (int i=0 ; i<8 ; i++) {
+        if ((i+1)*len < sLength)  TFTBuffer.drawString(jsondata.substring(i*len, (i+1)*len), 120,50+i*Abstand); 
+        else if (i*len < sLength) TFTBuffer.drawString(jsondata.substring(i*len, sLength), 120,50+i*Abstand); 
+      }
+      jsondata = "";
+    }
+    PushTFT();
+    TSScreenRefresh = millis();
+  }
+}
+void ShowPeer(int PNr) {
+  if (Mode != OldMode) TSScreenRefresh = millis();
+
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+    TFTBuffer.loadFont(AA_FONT_SMALL);
+    
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+    TFTBuffer.setTextDatum(TC_DATUM);
+    
+    TFTBuffer.drawString(P[PNr].Name, 120, 200); 
+
+    DrawButton(5);
+    DrawButton(6);
+    DrawButton(7);
+    DrawButton(8);
+
+    TSScreenRefresh = millis();
+  }
+}
+void ShowPeers() {
+  if (Mode != OldMode) TSScreenRefresh = millis();
+
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+    TFTBuffer.loadFont(AA_FONT_SMALL);
+    
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+    TFTBuffer.setTextDatum(TC_DATUM);
+    
+    TFTBuffer.drawString("Devices", 120, 200); 
+
+    int Abstand = 20;
+    String ZName;
+
+    TFTBuffer.setTextDatum(TL_DATUM);
+    
+    for (int PNr=0 ; PNr<MAX_PEERS ; PNr++) {
+      if (P[PNr].Type) {
+        TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
+        TFTBuffer.drawString(P[PNr].Name, 10, 80+PNr*Abstand);
+        switch (P[PNr].Type) {
+          case 1: ZName = "1-way PDC";  break;
+          case 2: ZName = "2-way PDC";  break;
+          case 4: ZName = "4-way PDC";  break;
+          case 8: ZName = "8-way PDC";  break;
+          case 9: ZName = "Batt.-Sens."; break;
+        }
+        TFTBuffer.drawString(ZName, 105, 80+PNr*Abstand);
+        
+        if (millis()- P[PNr].TSLastSeen > OFFLINE_INTERVAL) { 
+          TFTBuffer.setTextColor(TFT_DARKGREY,  TFT_BLACK); 
+          TFTBuffer.drawString("off", 200, 80+PNr*Abstand);
+        }
+        else { 
+          TFTBuffer.setTextColor(TFT_DARKGREEN, TFT_BLACK); 
+          TFTBuffer.drawString("on",  200, 80+PNr*Abstand); 
+        }
+      }
+    }
+    TSScreenRefresh = millis();
+  }
+}
 void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
@@ -615,6 +832,75 @@ void PushTFT() {
     ScreenChanged = false;
   }
 }
+void SetMsgIndicator() {
+  if (Debug) {
+    if (TSMsgVolt) {
+        if (millis() - TSMsgVolt > MSGLIGHT_INTERVAL) {
+          TSMsgVolt = 0;
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 335, 355, TFT_BLACK, TFT_BLACK);
+          MsgVoltAktiv = false;
+          ScreenChanged = true;
+        }
+        else if (MsgVoltAktiv == false) {
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 335, 355, TFT_BLUE, TFT_BLACK);
+          MsgVoltAktiv = true;
+          ScreenChanged = true;
+        }
+    }
+    if (TSMsgEich) {
+        if (millis() - TSMsgEich > MSGLIGHT_INTERVAL) {
+          TSMsgEich = 0; 
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 5, 25, TFT_BLACK, TFT_BLACK);
+          MsgEichAktiv = false;
+          ScreenChanged = true;
+        }
+        else if (MsgEichAktiv == false) {
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 5, 25, TFT_GREEN, TFT_BLACK);
+          MsgEichAktiv = true;
+          ScreenChanged = true;
+        }
+    }
+    if (TSMsgPDC) {
+        if (millis() - TSMsgPDC > MSGLIGHT_INTERVAL) {
+          TSMsgPDC = 0;
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 0, 5, TFT_BLACK, TFT_BLACK);
+          MsgPDCAktiv = false;
+          ScreenChanged = true;
+        }
+        else if (MsgPDCAktiv == false) {
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 0, 5, TFT_DARKGREY, TFT_BLACK);
+          MsgPDCAktiv = true;
+          ScreenChanged = true;
+        }
+    }
+    if (TSMsgBat) {
+        if (millis() - TSMsgBat > MSGLIGHT_INTERVAL) {
+          TSMsgBat = 0;
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 355, 360, TFT_BLACK, TFT_BLACK);
+          MsgBatAktiv = false;
+          ScreenChanged = true;
+        }
+        else if (MsgBatAktiv == false) {
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118, 355, 360, TFT_DARKGREEN, TFT_BLACK);
+          MsgBatAktiv = true;
+          ScreenChanged = true;
+        }
+    }
+    if (TSPair) {
+        if (millis() - TSPair > PAIR_INTERVAL) {
+          TSPair = 0; ReadyToPair = false;
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118,   5,  10, TFT_BLACK, TFT_BLACK);
+          MsgPairAktiv = false;
+          ScreenChanged = true;
+        }
+        else if (MsgPairAktiv == false) {
+          TFTBuffer.drawSmoothArc(120, 120, 120, 118,   5,  10, TFT_RED, TFT_BLACK);
+          MsgPairAktiv = true;
+          ScreenChanged = true;
+        }
+    }
+  }
+}
 void SetSleepMode(bool Mode) {
   preferences.begin("JeepifyInit", false);
     SleepMode = Mode;
@@ -672,9 +958,9 @@ bool isSensorVolt(int Type) {
 bool isSensorAmp(int Type) {
   return (Type == SENS_TYPE_AMP);
 }
-bool SensorChanged(int Start, int Stop=0) {
+bool SensorChanged(int Start, int Stop) {
   int ret = false;
-  if (Stop == 0) Stop = Start;
+  if (Stop == 99) Stop = Start;
   for (int Si=Start; Si++; Si<Stop+1) if (P[ActivePeer].S[Si].Changed) ret = true;
   return ret;
 }
@@ -766,7 +1052,9 @@ int  TouchQuarter(void) {
   return NOT_FOUND;
 }
 int  TouchRead() {
-  uint16_t TouchX, TouchY, Gesture;
+  uint16_t TouchX, TouchY;
+  uint8_t  Gesture;
+
   int ret = 0;
 
   bool TouchContact = TouchHW.getTouch(&TouchX, &TouchY, &Gesture);
@@ -806,13 +1094,267 @@ int  TouchRead() {
     else { Touch.Gesture = CLICK; ret = CLICK; }
   }                                                                    
   //nicht berührt
-  else (!TouchContact and !Touch.TSTouched) {  
+  else if (!TouchContact and !Touch.TSTouched) {  
     ret = 0;
-    T.TSTouched  = 0;
-    T.TSReleased = 0;
+    Touch.TSTouched  = 0;
+    Touch.TSReleased = 0;
   }
   return ret;
 }
+int  RingMeter(float value, float vmin, float vmax, const char *units, const char *bez, byte scheme) {
+  int x = 0;
+  int y = 0;
+  int r = 120;
+  int nk = 0;
+  
+  if (Mode != OldMode) TSScreenRefresh = millis();
+  
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;
+    char buf[20];
+    float fbuf;
+  
+    byte len = 5;
+  
+    x += r; y += r;   // Calculate coords of centre of ring
+    int w = r / 4;    // Width of outer ring is 1/4 of radius
+    float angle = 150;  // Half the sweep angle of meter (300 degrees)
+    float v = mapf(value, vmin, vmax, -angle, angle); // Map the value to an angle v
+    
+    byte seg = 3; // Segments are 3 degrees wide = 100 segments for 300 degrees
+    byte inc = 6; // Draw segments every 3 degrees, increase to 6 for segmented ring
+  
+    // Variable to save "value" text colour from scheme and set default
+    int colour = TFT_BLUE;
+    
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+    
+    TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    
+    if (Debug) TFTBuffer.drawString(P[ActivePeer].Name, 120,225);
+
+    TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
+    TFTBuffer.setTextDatum(TC_DATUM);
+    TFTBuffer.drawString(units, 120,150); // Units display
+    TFTBuffer.setTextDatum(BC_DATUM);
+    TFTBuffer.drawString(bez, 120,90); // Units display
+
+    TFTBuffer.setTextColor(TFT_GREEN, TFT_BLACK);
+    
+    //draw Values
+    dtostrf(vmin, len, 0, buf);
+    
+    TFTBuffer.setTextDatum(BL_DATUM);
+    TFTBuffer.drawString(buf, 65, 200);
+    
+    dtostrf(vmin+((vmax-vmin)/4*1), len, 0, buf);
+    TFTBuffer.setTextDatum(ML_DATUM);
+    TFTBuffer.drawString(buf, w, 120);
+    
+    dtostrf(vmin+((vmax-vmin)/4*2), len, 0, buf);
+    TFTBuffer.setTextDatum(TC_DATUM);
+    TFTBuffer.drawString(buf, 115, w+10);
+    
+    dtostrf(vmin+((vmax-vmin)/4*3), len, 0, buf);
+    TFTBuffer.setTextDatum(MR_DATUM);
+    TFTBuffer.drawString(buf, 240-w-10, 120);
+    
+    dtostrf(vmax, len, 0, buf);
+    TFTBuffer.setTextDatum(BR_DATUM);
+    TFTBuffer.drawString(buf, 162, 200);
+    
+    // Set the text colour to default
+    
+    TFTBuffer.unloadFont();
+    
+    TFTBuffer.setTextDatum(MC_DATUM);
+    
+    if      (value<10)  nk = 2;
+    else if (value<100) nk = 1;
+    else                nk = 0;
+
+    dtostrf(value, 0, nk, buf);
+
+    TFTBuffer.loadFont(AA_FONT_LARGE); 
+    TFTBuffer.setTextColor(0xF1C7,TFT_BLACK);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.drawString(buf, 120,120); // Value in middle
+    
+    TFTBuffer.unloadFont(); // Remove the font to recover memory used
+  
+    // Draw colour blocks every inc degrees
+    for (int i = -angle+inc/2; i < angle-inc/2; i += inc) {
+      // Calculate pair of coordinates for segment start
+      float sx = cos((i - 90) * 0.0174532925);
+      float sy = sin((i - 90) * 0.0174532925);
+      uint16_t x0 = sx * (r - w) + x;
+      uint16_t y0 = sy * (r - w) + y;
+      uint16_t x1 = sx * r + x;
+      uint16_t y1 = sy * r + y;
+
+      // Calculate pair of coordinates for segment end
+      float sx2 = cos((i + seg - 90) * 0.0174532925);
+      float sy2 = sin((i + seg - 90) * 0.0174532925);
+      int x2 = sx2 * (r - w) + x;
+      int y2 = sy2 * (r - w) + y;
+      int x3 = sx2 * r + x;
+      int y3 = sy2 * r + y;
+
+      if (i < v) { // Fill in coloured segments with 2 triangles
+        switch (scheme) {
+          case 0: colour = TFT_RED; break; // Fixed colour
+          case 1: colour = TFT_GREEN; break; // Fixed colour
+          case 2: colour = TFT_BLUE; break; // Fixed colour
+          case 3: colour = rainbow(map(i, -angle, angle, 0, 127)); break; // Full spectrum blue to red
+          case 4: colour = rainbow(map(i, -angle, angle, 70, 127)); break; // Green to red (high temperature etc)
+          case 5: colour = rainbow(map(i, -angle, angle, 127, 63)); break; // Red to green (low battery etc)
+          default: colour = TFT_BLUE; break; // Fixed colour
+        }
+        TFTBuffer.fillTriangle(x0, y0, x1, y1, x2, y2, colour);
+        TFTBuffer.fillTriangle(x1, y1, x2, y2, x3, y3, colour);
+        //text_colour = colour; // Save the last colour drawn
+      }
+      else // Fill in blank segments
+      {
+        TFTBuffer.fillTriangle(x0, y0, x1, y1, x2, y2, TFT_GREY);
+        TFTBuffer.fillTriangle(x1, y1, x2, y2, x3, y3, TFT_GREY);
+      }
+    }
+    PushTFT();
+    TSScreenRefresh = millis();
+  }
+  return x + r;
+}
+int  CalcField(int x, int y) {
+  int Field = 1;
+  int z    = 0;
+  int StartX   = (240 - (6*ButtonRd) - 2*ButtonGapX)/2 + ButtonRd;
+  int StartY   = (240 - (6*ButtonRd) - 2*ButtonGapY)/2 + ButtonRd - 5;
+
+  for (int r=0; r<4; r++) {
+    int y1 = StartY + r*(ButtonRd*2 + ButtonGapY) - ButtonRd;
+    int y2 = y1+ButtonRd*2;
+    for (int c=0; c<3; c++) {
+      int x1 = StartX + c*(ButtonRd*2 + ButtonGapX) - ButtonRd;
+      int x2 = x1+ButtonRd*2;
+      if ((x>x1 and x<x2) and (y>y1 and y<y2)) {
+        Serial.println(Field);
+        return Field;
+      }
+      Field++;
+    }
+  }
+  return -1;
+}
+void AddVolt(int i) {
+  if ((i>=0) and (i<=9)) {
+    switch (VoltCount) {
+      case 0: VoltCalib  = (i)*10;          VoltCount++; break;
+      case 1: VoltCalib += (i);             VoltCount++; break;
+      case 2: VoltCalib += (float) (i)/10;  VoltCount++; break;
+      case 3: VoltCalib += (float) (i)/100; VoltCount++; break;
+    }
+  } 
+  else if (i==11) VoltCount++;
+  
+  if (VoltCount == 4) {
+    String jsondata;
+    jsondata = "";  //clearing String after data is being sent
+    doc.clear();
+  
+    char buf[10];
+    dtostrf(VoltCalib, 5, 2, buf);
+
+    doc["Node"] = NODE_NAME;   
+    doc["Order"] = "VoltCalib";
+    doc["Value"] = buf;
+    
+    serializeJson(doc, jsondata);  
+  
+    //esp_now_send(broadcastAddressBattery,     (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    //esp_now_send(broadcastAddressBattery8266, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    Serial.println(jsondata);
+
+    TSMsgVolt = millis();
+    Mode = S_MENU;
+  }
+}
+void EichenVolt() {
+  if (Mode != OldMode) {
+    TSScreenRefresh = millis();
+    VoltCount = 0;
+    VoltCalib = 0;
+  }
+
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;
+    TFTBuffer.pushImage(0,0, 240, 240, Keypad);  
+    TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.setTextColor(TFT_RUBICON, 0x632C, false);
+
+    char buf[10];
+    dtostrf(VoltCalib, 5, 2, buf);
+
+    TFTBuffer.drawString(buf, 120,25);
+    TFTBuffer.unloadFont();
+
+    TSScreenRefresh = millis();
+  }
+}
+void ForceEichen() {
+  doc.clear();
+  jsondata = "";
+
+  doc["Node"] = NODE_NAME;   
+  doc["Order"] = "Eichen";
+  
+  serializeJson(doc, jsondata);  
+  
+  //esp_now_send(broadcastAddressBattery,     (uint8_t *) jsondata.c_str(), 50);  //Sending "jsondata"  
+  //esp_now_send(broadcastAddressBattery8266, (uint8_t *) jsondata.c_str(), 50);  //Sending "jsondata"  
+
+  Serial.println(jsondata);
+  jsondata = "";
+
+  TSMsgEich = millis();
+}
+unsigned int rainbow(byte value)
+{
+  // Value is expected to be in range 0-127
+  // The value is converted to a spectrum colour from 0 = blue through to 127 = red
+
+  byte red = 0; // Red is the top 5 bits of a 16 bit colour value
+  byte green = 0;// Green is the middle 6 bits
+  byte blue = 0; // Blue is the bottom 5 bits
+
+  byte quadrant = value / 32;
+
+  if (quadrant == 0) {
+    blue = 31;
+    green = 2 * (value % 32);
+    red = 0;
+  }
+  if (quadrant == 1) {
+    blue = 31 - (value % 32);
+    green = 63;
+    red = 0;
+  }
+  if (quadrant == 2) {
+    blue = 0;
+    green = 63;
+    red = value % 32;
+  }
+  if (quadrant == 3) {
+    blue = 0;
+    green = 63 - 2 * (value % 32);
+    red = 31;
+  }
+  return (red << 11) + (green << 5) + blue;
+}
+
 void PrintMAC(const uint8_t * mac_addr){
   char macStr[18];
   snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
