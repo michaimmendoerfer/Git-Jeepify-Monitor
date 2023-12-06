@@ -303,7 +303,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               P[PNr].Type = doc["Type"];
               P[PNr].TSLastSeen = millis();
               
-              for (int Si=0; Si<MAX_PERIPHERALS; Si++=) {
+              for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
                 sprintf(BufB, "%d", Si); 
                 strcpy(Buf, "S"); strcat(Buf, BufB);
                 if (doc.containsKey(Buf)) strcpy(P[PNr].S[Si].Name, doc[Buf]);
