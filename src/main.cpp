@@ -36,12 +36,13 @@ void   SetSleepMode(bool Mode);
 void   SetDebugMode(bool Mode);
 
 void   DrawButton(int z);
-bool   ButtonHit(int x, int y, int z);
+bool   ButtonHit(int b);
 int    CalcField(int x, int y);
 void   AddVolt(int i);
 void   EichenVolt();
 
 void   ToggleSwitch (int Si);
+void   SendCommand(String Cmd);
 
 void   SetMsgIndicator();
 void   ScreenUpdate();
@@ -83,16 +84,19 @@ uint16_t rainbowColor(uint8_t spectrum);
 
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
-struct_Button Button[10] = {
-  { 25, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Volt", false},
-  { 95, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Amp",  false},
-  {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON", false},
-  { 60, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "DBG",  false},
-  {130, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "Pair", false},
-  { 25,  25, 70, 50, TFT_WHITE, TFT_BLACK, "Restart", false},
-  {145,  25, 70, 50, TFT_WHITE, TFT_BLACK, "Reset",   false},
-  { 25, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Pair",    false},
-  {145, 100, 70, 50, TFT_WHITE, TFT_BLACK, "Eichen",  false}
+struct_Button Button[12] = {
+  { 25, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Volt",      false},   // 0
+  { 95, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Amp",       false},   // 1
+  {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON",      false},   // 2
+  { 60, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "DBG",       false},   // 3
+  {130, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "Pair",      false},   // 4
+  { 25,  25, 70, 50, TFT_WHITE,   TFT_BLACK, "Restart",   false},   // 5
+  {145,  25, 70, 50, TFT_WHITE,   TFT_BLACK, "Reset",     false},   // 6
+  { 25, 100, 70, 50, TFT_WHITE,   TFT_BLACK, "Pair",      false},   // 7
+  {145, 100, 70, 50, TFT_WHITE,   TFT_BLACK, "Eichen",    false},   // 8
+  { 25, 175, 70, 50, TFT_WHITE,   TFT_BLACK, "VoltCalib", false},   // 9
+  {145, 175, 70, 50, TFT_WHITE,   TFT_BLACK, "Sleep",     false},   // 10
+  {145, 175, 70, 50, TFT_WHITE,   TFT_BLACK, "Debug",     false}    // 11
 };
 
 Preferences preferences;
@@ -217,7 +221,7 @@ void loop() {
           }
           break;
         case S_SENSOR4 : 
-          switch(Touch.Gesture) {
+          switch (Touch.Gesture) {
             case CLICK:       Mode = S_SENSOR1; ActiveSens = TouchQuarter(); break;
             case SWIPE_LEFT:  ActivePeer = NextBat(); break; //Sensor oder Peer +
             case SWIPE_RIGHT: ActivePeer = PrevBat(); break; //Sensor oder Peer -
@@ -225,9 +229,40 @@ void loop() {
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;
-        case S_PEER    : ShowPeer(ActivePeer);    break;
-        case S_PEERS   : ShowPeers();   break;
-        case S_JSON    : ShowJSON();    break;
+        case S_PEER    : 
+          switch (Touch.Gesture) {
+            case CLICK:            if (ButtonHit( 5)) SendCommand("Restart");
+                              else if (ButtonHit( 6)) SendCommand("Reset");
+                              else if (ButtonHit( 7)) SendCommand("Pair");
+                              else if (ButtonHit( 8)) SendCommand("Eichen");
+                              else if (ButtonHit( 9)) SendCommand("VoltCalib");
+                              else if (ButtonHit(10)) SendCommand("SleepMode On");
+                              else if (ButtonHit(11)) SendCommand("Debug On");
+                              break;
+            case SWIPE_LEFT:  ActivePeer = NextBat(); break; //Sensor oder Peer +
+            case SWIPE_RIGHT: ActivePeer = PrevBat(); break; //Sensor oder Peer -
+            case SWIPE_UP:    Mode = S_MENU; break;
+            case SWIPE_DOWN:  Mode = S_MENU; break;
+          }
+          break;
+        case S_PEERS   : 
+          switch (Touch.Gesture) {
+            case CLICK:       Mode = S_MENU; break;
+            case SWIPE_LEFT:  Mode = S_MENU; break;
+            case SWIPE_RIGHT: Mode = S_MENU; break;
+            case SWIPE_UP:    Mode = S_MENU; break;
+            case SWIPE_DOWN:  Mode = S_MENU; break;
+          }
+          break;
+        case S_JSON    :
+          switch (Touch.Gesture) {
+            case CLICK:       Mode = S_MENU; break;
+            case SWIPE_LEFT:  Mode = S_MENU; break;
+            case SWIPE_RIGHT: Mode = S_MENU; break;
+            case SWIPE_UP:    Mode = S_MENU; break;
+            case SWIPE_DOWN:  Mode = S_MENU; break;
+          }
+          break;
         //case S_SETTING : ShowSetting(); break;
       }
     }
@@ -540,8 +575,9 @@ void DrawButton(int z) {
 
    TFTBuffer.unloadFont();
 }
-bool ButtonHit(int x, int y, int z) {
-  return ( ((x>Button[z].x) and (x<Button[z].x+Button[z].w) and (y>Button[z].y) and (y<Button[z].y+Button[z].h)) );
+bool ButtonHit(int b) {
+  return ( ((Touch.x1>Button[b].x) and (Touch.x1<Button[b].x+Button[b].w) and 
+            (Touch.y1>Button[b].y) and (Touch.y1<Button[b].y+Button[b].h)) );
 }
 void ShowSensor1(int SNr) {
   if (Mode != OldMode) TSScreenRefresh = millis();
@@ -708,6 +744,7 @@ void ShowPeer(int PNr) {
   if (Mode != OldMode) TSScreenRefresh = millis();
 
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    OldMode = Mode;
     ScreenChanged = true;
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
     TFTBuffer.loadFont(AA_FONT_SMALL);
@@ -721,6 +758,8 @@ void ShowPeer(int PNr) {
     DrawButton(6);
     DrawButton(7);
     DrawButton(8);
+    DrawButton(9);
+    DrawButton(10);
 
     TSScreenRefresh = millis();
   }
@@ -729,6 +768,7 @@ void ShowPeers() {
   if (Mode != OldMode) TSScreenRefresh = millis();
 
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    OldMode = Mode;
     ScreenChanged = true;
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
     TFTBuffer.loadFont(AA_FONT_SMALL);
@@ -736,7 +776,7 @@ void ShowPeers() {
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
     TFTBuffer.setTextDatum(TC_DATUM);
     
-    TFTBuffer.drawString("Devices", 120, 200); 
+    TFTBuffer.drawString("Peers", 120, 200); 
 
     int Abstand = 20;
     String ZName;
@@ -800,15 +840,11 @@ void ScreenUpdate() {
           for (int Si=0; Si<4; Si++) P[ActivePeer].S[Si].Changed = false;
         }
         break;  
-      case S_JSON   :   ShowJSON();    OldMode = Mode; break;  
-      //case S_DEVICES:   ShowDevices(); OldMode = Mode; break;
-      //case S_CALIB_V:   EichenVolt();  OldMode = Mode; break;  
-      case S_MENU:      
-        if (Mode != OldMode) {
-          ShowMenu(); 
-          OldMode = Mode; 
-        }
-      break;        
+      case S_JSON:      ShowJSON();           OldMode = Mode; break;  
+      case S_PEER:      ShowPeer(ActivePeer); OldMode = Mode; break;
+      case S_PEERS:     ShowPeers();          OldMode = Mode; break;
+      case S_CAL_VOL:   EichenVolt();         OldMode = Mode; break;  
+      case S_MENU:      ShowMenu();           OldMode = Mode; break;        
     }
     PushTFT();
   }
@@ -920,6 +956,20 @@ void ToggleSwitch(int Si) {
   doc["from"] = NODE_NAME;   
   doc["Order"] = "ToggleSwitch";
   doc["Value"] = P[ActivePeer].S[Si].Name;
+  
+  serializeJson(doc, jsondata);  
+  
+  esp_now_send(P[ActivePeer].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+  Serial.println(jsondata);
+  
+  jsondata = "";
+}
+void SendCommand(String Cmd) {
+  jsondata = "";  //clearing String after data is being sent
+  doc.clear();
+  
+  doc["from"] = NODE_NAME;   
+  doc["Order"] = Cmd;
   
   serializeJson(doc, jsondata);  
   
