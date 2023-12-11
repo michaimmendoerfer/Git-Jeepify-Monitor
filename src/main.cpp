@@ -80,7 +80,6 @@ int    TouchRead();
 void   PrintMAC(const uint8_t * mac_addr);
 float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
-uint16_t rainbowColor(uint8_t spectrum);
 
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
@@ -104,7 +103,7 @@ Preferences preferences;
 int ActivePeer   = -1;
 int ActiveSens   = -1;
 int PeerCount    =  0;
-int Mode         =  0;
+int Mode         =  S_MENU;
 int OldMode      = 99;
 int UpdateCount  =  0;
 
@@ -169,7 +168,7 @@ void setup() {
   RegisterPeers();
   Serial.println("RegisterPeers fertig...");
 
-  if (PeerCount == 0) { ReadyToPair = true; TSPair = millis(); }
+  if (PeerCount == 0) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
   
   TSScreenRefresh = millis();
 }
@@ -182,18 +181,33 @@ void loop() {
     TSPing = millis();
     SendPing();
   }
-  if (millis() - TSTouch > TOUCH_INTERVAL) {
-    if (ReadyToPair) Mode = S_PAIRING;
-    else if (TouchRead() > 1) {
+  if (ReadyToPair) {
+    if (millis() - TSPair  > PAIR_INTERVAL ) {
+      TSPair = 0;
+      ReadyToPair = false;
+      Mode = S_MENU;
+    }
+    else Mode = S_PAIRING;
+  }
+  else if (millis() - TSTouch > TOUCH_INTERVAL) {
+    if (TouchRead() > 1) {
+      //Serial.print("Touch:"); Serial.println(Touch.Gesture);
       //S_MENU
       switch (Mode) {
         case S_MENU    : 
-          switch (TouchQuarter()) {
-            case 0: Mode = S_SENSOR1; break;
-            case 1: Mode = S_SWITCH1; break;
-            case 2: Mode = S_SWITCH4; break;
-            case 3: Mode = S_SETTING; break;
-          } 
+          switch (Touch.Gesture) {
+            case CLICK:       
+              switch (TouchQuarter()) {
+                case 0: Mode = S_SENSOR1; break;
+                case 1: Mode = S_SWITCH1; break;
+                case 2: Mode = S_SWITCH4; break;
+                case 3: Mode = S_PEERS; break;
+              } 
+              break;
+            case SWIPE_LEFT:  break;
+            case SWIPE_RIGHT: break;
+            case SWIPE_UP:    break;
+          }
           break;
         case S_SENSOR1: 
           switch (Touch.Gesture) {
@@ -267,6 +281,7 @@ void loop() {
       }
     }
   }
+  ScreenUpdate();
 }
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
@@ -408,9 +423,19 @@ void InitModule() {
   TFT.setRotation(Rotation);
   TFT.setSwapBytes(true);
 
+  TFTBuffer.createSprite(240,240);
+  TFTBuffer.setSwapBytes(true);
+  
   TFTGaugeSwitch.createSprite(100,100);
   TFTGaugeSwitch.setSwapBytes(false);
   TFTGaugeSwitch.pushImage(0, 0, 100, 100, BtnSmall);
+
+  TFT.pushImage(0,0, 240, 240, JeepifyLogo); 
+  TFT.loadFont(AA_FONT_SMALL); 
+  TFT.setTextColor(TFT_BLACK, TFT_RED, false);
+  TFT.setTextDatum(MC_DATUM); 
+  TFT.drawString(VERSION, 120,60);
+  TSMsgStart = millis();
 
   Serial.println("InitModule() fertig...");
 }
@@ -454,7 +479,7 @@ void GetPeers() {
   for (int Pi=0; Pi<MAX_PEERS; Pi++) {
     // Peer gefüllt?
     sprintf(BufNr, "%d", Pi); strcpy(Buf, "Type-"); strcat(Buf, BufNr);
-    Serial.print("getInt("); Serial.print(Buf); Serial.print(" = "); Serial.print(preferences.getInt(Buf));
+    Serial.print("getInt("); Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
     if (preferences.getInt(Buf) > 0) {
       PeerCount++;
       
@@ -478,6 +503,7 @@ void GetPeers() {
         Serial.print(Pi); Serial.print(": Type="); Serial.print(P[Pi].Type); 
         Serial.print(", Name="); Serial.print(P[Pi].Name);
         Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
+        Serial.println();
       }
     }
   }
@@ -563,7 +589,11 @@ void SendPing() {
   serializeJson(doc, jsondata);  
   for (int PNr=0; PNr<MAX_PEERS; PNr++) esp_now_send(P[PNr].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
   Serial.print("Sending Ping:"); 
-  Serial.println(jsondata);      
+  Serial.println(jsondata);   
+
+  Serial.print("Mode="); Serial.print(Mode);
+  Serial.print(", OldMode="); Serial.println(OldMode);
+     
 }
 void DrawButton(int z) {
   TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
@@ -633,7 +663,7 @@ void ShowPairingScreen() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;             
 
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
     TFTBuffer.setTextDatum(MC_DATUM);
     TFTBuffer.loadFont(AA_FONT_LARGE); 
 
@@ -812,8 +842,12 @@ void ShowPeers() {
 void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
+      case S_PAIRING:
+        if (Mode != OldMode) { ShowPairingScreen(); OldMode = Mode; }
+        break;
       case S_SENSOR1: 
         if ((Mode != OldMode) or (SensorChanged(ActiveSens))) {
+          ScreenChanged = true;
           noInterrupts(); 
             TempValue[0] = P[ActivePeer].S[ActiveSens].Value; 
             P[ActivePeer].S[ActiveSens].Changed = false; 
@@ -829,7 +863,7 @@ void ScreenUpdate() {
         break;          
       case S_SENSOR4:
         if ((Mode != OldMode) or (SensorChanged(0,3))) {
-            
+          ScreenChanged = true; 
           noInterrupts(); 
             for (int Si=0; Si<4; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value;  
           interrupts();
@@ -846,13 +880,12 @@ void ScreenUpdate() {
       case S_CAL_VOL:   EichenVolt();         OldMode = Mode; break;  
       case S_MENU:      ShowMenu();           OldMode = Mode; break;        
     }
-    PushTFT();
   }
+  PushTFT();
 }
 void ShowMenu() {
-  if (Mode != OldMode) TSScreenRefresh = millis();
+  if (Mode != OldMode) { TSScreenRefresh = millis();  ScreenChanged = true; }
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
-    ScreenChanged = true;
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
     TSScreenRefresh = millis();
   }
@@ -862,7 +895,9 @@ void PushTFT() {
   
   if (ScreenChanged) {
     Serial.print("ScreenUpdate: ");
-    Serial.println(UpdateCount);
+    Serial.print(UpdateCount);
+    Serial.print(" - Gesture: ");
+    Serial.println(Touch.Gesture);
     UpdateCount++;
     TFTBuffer.pushSprite(0, 0);
     ScreenChanged = false;
@@ -1102,53 +1137,48 @@ int  TouchQuarter(void) {
   return NOT_FOUND;
 }
 int  TouchRead() {
-  uint16_t TouchX, TouchY;
-  uint8_t  Gesture;
+  uint16_t TouchX, TouchY = 0;
+  uint8_t  Gesture = 0;
 
   int ret = 0;
 
-  bool TouchContact = TouchHW.getTouch(&TouchX, &TouchY, &Gesture);
+  Touch.Touched = TouchHW.getTouch(&TouchX, &TouchY, &Gesture);
   TouchX = 240-TouchX; 
 
-  //frisch berührt
-  if (TouchContact and !Touch.TSTouched) {       
-    Touch.TSTouched = millis();
-    Touch.x0 = TouchX;
+  if(Touch.Touched && !Touch.TouchedOld) {
+    Touch.x0 = TouchX;    // erste Berührung
     Touch.y0 = TouchY;
-    Touch.Gesture = 0;
-    Touch.TSReleased = 0;
+    Touch.TSFirstTouch = millis();
+    Touch.TSReleaseTouch = 0;
     ret = TOUCHED;
-  }
-  //Finger bleibt drauf
-  else if (TouchContact and Touch.TSTouched) {   
-    Touch.x0 = TouchX;
-    Touch.y0 = TouchY;
-    Touch.Gesture = 0;
-    Touch.TSReleased = 0;
+  } 
+  else if (Touch.Touched && Touch.TouchedOld) { 
+    Touch.x1 = TouchX;     // gehalten
+    Touch.y1 = TouchY;
     ret = HOLD;
   }
-  //Release
-  else if (!TouchContact and Touch.TSTouched) {  
-    Touch.TSReleased = millis();
-    Touch.x1 = TouchX;
+  else if (!Touch.Touched && Touch.TouchedOld) {
+    Touch.x1 = TouchX;     // losgelassen
     Touch.y1 = TouchY;
-          
-         if ((Touch.x1-Touch.x0) > 50)  { Touch.Gesture = SWIPE_LEFT;  ret = SWIPE_LEFT; }                      // swipe left
-    else if ((Touch.x1-Touch.x0) < -50) { Touch.Gesture = SWIPE_RIGHT; ret = SWIPE_RIGHT; }                     // swipe right
+    Touch.TSReleaseTouch = millis();
+         if ((Touch.x1-Touch.x0) > 50)  { Touch.Gesture = SWIPE_RIGHT;  ret = SWIPE_RIGHT; }                      // swipe left
+    else if ((Touch.x1-Touch.x0) < -50) { Touch.Gesture = SWIPE_LEFT; ret = SWIPE_LEFT; }                     // swipe right
     else if ((Touch.y1-Touch.y0) > 50)  { Touch.Gesture = SWIPE_DOWN;  ret = SWIPE_DOWN; }                      // swipe down
     else if ((Touch.y1-Touch.y0) < -50) { Touch.Gesture = SWIPE_UP;    ret = SWIPE_UP; }                        // swipe up
-    else if ((Touch.TSReleased - Touch.TSTouched) > LONG_PRESS_INTERVAL) {                                      // longPress
-      Touch.Gesture = LONG_PRESS;
-      ret = LONG_PRESS;     
-    }  
-    else { Touch.Gesture = CLICK; ret = CLICK; }
-  }                                                                    
-  //nicht berührt
-  else if (!TouchContact and !Touch.TSTouched) {  
-    ret = 0;
-    Touch.TSTouched  = 0;
-    Touch.TSReleased = 0;
+    else if ((Touch.TSReleaseTouch - Touch.TSFirstTouch) > LONG_PRESS_INTERVAL)                                 // longPress
+                                        { Touch.Gesture = LONG_PRESS;  ret = LONG_PRESS; }
+    else                                { Touch.Gesture = CLICK; ret = CLICK; }
   }
+  else if (!Touch.Touched && !Touch.TouchedOld) {
+    Touch.x0 = TouchX;    // nix
+    Touch.y0 = TouchY;
+    Touch.TSFirstTouch = 0;
+    Touch.TSReleaseTouch = 0;
+    ret = 0;
+  }
+  Touch.TouchedOld = Touch.Touched;  
+
+  if (ret) { Serial.print("Touch: "); Serial.println(ret);}
   return ret;
 }
 int  RingMeter(float value, float vmin, float vmax, const char *units, const char *bez, byte scheme) {
@@ -1371,6 +1401,10 @@ void ForceEichen() {
 
   TSMsgEich = millis();
 }
+float mapf(float x, float in_min, float in_max, float out_min, float out_max)
+{
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 unsigned int rainbow(byte value)
 {
   // Value is expected to be in range 0-127
@@ -1404,7 +1438,6 @@ unsigned int rainbow(byte value)
   }
   return (red << 11) + (green << 5) + blue;
 }
-
 void PrintMAC(const uint8_t * mac_addr){
   char macStr[18];
   snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
