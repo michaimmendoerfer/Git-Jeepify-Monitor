@@ -610,10 +610,9 @@ bool ButtonHit(int b) {
             (Touch.y1>Button[b].y) and (Touch.y1<Button[b].y+Button[b].h)) );
 }
 void ShowSensor1(int SNr) {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(SNr))) {
-    ScreenChanged = true;             
+    ScreenChanged = true;   
+    OldMode = Mode;          
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
     TFTBuffer.setTextDatum(MC_DATUM);
@@ -630,10 +629,9 @@ void ShowSensor1(int SNr) {
   } 
 }
 void ShowSwitch1(int SNr) {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(SNr))) {
     ScreenChanged = true;
+    OldMode = Mode;
   
     TFTBuffer.pushImage(0,0, 240, 240, Btn);
     TFTBuffer.loadFont(AA_FONT_LARGE); 
@@ -658,10 +656,9 @@ void ShowSwitch1(int SNr) {
   } 
 }
 void ShowPairingScreen() {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;             
+    OldMode = Mode;
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
     TFTBuffer.setTextDatum(MC_DATUM);
@@ -674,10 +671,9 @@ void ShowPairingScreen() {
   }
 }
 void ShowSensor4(float Value[4]) {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
-    ScreenChanged = true;             
+    ScreenChanged = true;  
+    OldMmode = Mode;           
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
     TFTBuffer.setTextDatum(MC_DATUM);
@@ -710,38 +706,40 @@ void ShowSensor4(float Value[4]) {
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
     TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
     TFTBuffer.unloadFont(); 
+    
+    TSScreenRefresh = millis(); 
   }
 }
 void ShowSwitch4() {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
-    ScreenChanged = true;             
+    ScreenChanged = true;     
+    OldMode = Mode;        
 
-  TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-  TFTBuffer.setTextDatum(MC_DATUM);
-  TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
-  TFTBuffer.loadFont(AA_FONT_SMALL);  
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
+    TFTBuffer.loadFont(AA_FONT_SMALL);  
 
-  int Si = 0;
-    for (int Row=0; Row<2; Row++) {
-      for (int Col=0; Col<2; Col++) {
-        TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-        TFTBuffer.drawString(P[ActivePeer].S[Si].Name, 70+Col*100, 85+Row*90);
+    int Si = 0;
+      for (int Row=0; Row<2; Row++) {
+        for (int Col=0; Col<2; Col++) {
+          TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
+          TFTBuffer.drawString(P[ActivePeer].S[Si].Name, 70+Col*100, 85+Row*90);
+        }
+        Si++;
       }
-      Si++;
     }
-  }
 
-  TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-  TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
-  TFTBuffer.unloadFont(); 
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+    TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
+    TFTBuffer.unloadFont(); 
+
+    TSScreenRefresh = millis(); 
 }
 void ShowJSON() {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if (((TSScreenRefresh - millis() > SCREEN_INTERVAL) and (jsondata != "") or (Mode != OldMode))) {
     ScreenChanged = true;
+    OldMode = Mode;
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
     TFTBuffer.loadFont(AA_FONT_SMALL);
     
@@ -766,13 +764,10 @@ void ShowJSON() {
       }
       jsondata = "";
     }
-    PushTFT();
     TSScreenRefresh = millis();
   }
 }
 void ShowPeer(int PNr) {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     OldMode = Mode;
     ScreenChanged = true;
@@ -795,8 +790,6 @@ void ShowPeer(int PNr) {
   }
 }
 void ShowPeers() {
-  if (Mode != OldMode) TSScreenRefresh = millis();
-
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     OldMode = Mode;
     ScreenChanged = true;
