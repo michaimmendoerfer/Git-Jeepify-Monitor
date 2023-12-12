@@ -877,7 +877,6 @@ void ScreenUpdate() {
   PushTFT();
 }
 void ShowMenu() {
-  if (Mode != OldMode) { TSScreenRefresh = millis();  ScreenChanged = true; }
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
     TSScreenRefresh = millis();
@@ -951,8 +950,7 @@ void SetMsgIndicator() {
         }
     }
     if (TSPair) {
-        if (millis() - TSPair > PAIR_INTERVAL) {
-          TSPair = 0; ReadyToPair = false;
+        if (!ReadyToPair) {
           TFTBuffer.drawSmoothArc(120, 120, 120, 118,   5,  10, TFT_BLACK, TFT_BLACK);
           MsgPairAktiv = false;
           ScreenChanged = true;
