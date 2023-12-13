@@ -47,17 +47,19 @@ void   SendCommand(String Cmd);
 void   SetMsgIndicator();
 void   ScreenUpdate();
 void   PushTFT();
-void   ShowSwitch1(int);
+void   ShowMessage(char *Msg);
+void   ShowSwitch1();
 void   ShowSwitch4();
-void   ShowSensor1(int Si);
+void   ShowSensor1();
+void   ShowSensor4();
 void   ShowMenu();
-void   ShowJSON(void);
-void   ShowPeer(int);
+void   ShowJSON();
+void   ShowPeer();
 void   ShowPeers();
+void   ShowPairingScreen();
 
-int    RingMeter(float value, float vmin, float vmax, const char *units, const char *bez, byte scheme);
+int    RingMeter(float vmin, float vmax, const char *units, byte scheme);
 
-bool   ReadyToPair = false;
 bool   SensorChanged(int Start, int Stop=99);
 bool   isPDC(int Type);
 bool   isBat(int Type);
@@ -73,6 +75,8 @@ int    NextBat();
 int    PrevBat();
 int    NextPDC();
 int    PrevPDC();
+int    NextPeer();
+int    PrevPeer();
 
 int    TouchQuarter(void);
 int    TouchRead();
@@ -89,13 +93,13 @@ struct_Button Button[12] = {
   {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON",      false},   // 2
   { 60, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "DBG",       false},   // 3
   {130, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "Pair",      false},   // 4
-  { 25,  25, 70, 50, TFT_WHITE,   TFT_BLACK, "Restart",   false},   // 5
-  {145,  25, 70, 50, TFT_WHITE,   TFT_BLACK, "Reset",     false},   // 6
-  { 25, 100, 70, 50, TFT_WHITE,   TFT_BLACK, "Pair",      false},   // 7
-  {145, 100, 70, 50, TFT_WHITE,   TFT_BLACK, "Eichen",    false},   // 8
-  { 25, 175, 70, 50, TFT_WHITE,   TFT_BLACK, "VoltCalib", false},   // 9
-  {145, 175, 70, 50, TFT_WHITE,   TFT_BLACK, "Sleep",     false},   // 10
-  {145, 175, 70, 50, TFT_WHITE,   TFT_BLACK, "Debug",     false}    // 11
+  { 35,  25, 70, 30, TFT_WHITE,   TFT_BLACK, "Restart",   false},   // 5
+  {135,  25, 70, 30, TFT_WHITE,   TFT_BLACK, "Reset",     false},   // 6
+  { 35,  75, 70, 30, TFT_WHITE,   TFT_BLACK, "Pair",      false},   // 7
+  {135,  75, 70, 30, TFT_WHITE,   TFT_BLACK, "Eichen",    false},   // 8
+  { 35, 125, 70, 30, TFT_WHITE,   TFT_BLACK, "VoltCalib", false},   // 9
+  {135, 125, 70, 30, TFT_WHITE,   TFT_BLACK, "Sleep",     false},   // 10
+  {135, 125, 70, 30, TFT_WHITE,   TFT_BLACK, "Debug",     false}    // 11
 };
 
 Preferences preferences;
@@ -112,6 +116,7 @@ bool AvailPDC = false;
 bool AvailBat = false;
 bool Debug = true;
 bool SleepMode = false;
+bool ReadyToPair = false;
 
 int   ButtonRd   = 22;
 int   ButtonGapX = 6;
@@ -130,6 +135,7 @@ volatile uint32_t TSMsgPDC  = 0;
 volatile uint32_t TSMsgBat  = 0;
 volatile uint32_t TSMsgVolt = 0;
 volatile uint32_t TSMsgEich = 0;
+volatile uint32_t TSMsgPair = 0;
 volatile uint32_t TSPair    = 0;
 
 bool MsgBatAktiv  = false;
@@ -163,35 +169,41 @@ void setup() {
   Serial.println("GetPeers...");
   GetPeers();
   Serial.println("ReportPeers...");
-  ReportPeers();
+  //ReportPeers();
   Serial.println("RegisterPeers...");
   RegisterPeers();
   Serial.println("RegisterPeers fertig...");
 
-  if (PeerCount == 0) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
+  if (PeerCount == 0) { Serial.println("PeerCount=0 -RTP+"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
   
+  Mode = 1;
   TSScreenRefresh = millis();
+  TSTouch = millis();
 }
 void loop() {
-  if ((TSMsgStart) and (millis() - TSMsgStart > LOGO_INTERVAL)) {
+  /*if ((TSMsgStart) and (millis() - TSMsgStart > LOGO_INTERVAL)) {
     Mode = S_MENU;
     TSMsgStart = 0;
-  }
+  }*/
   if (millis() - TSPing > PING_INTERVAL) {
     TSPing = millis();
     SendPing();
+    Serial.println("Ping fertig");
   }
-  if (ReadyToPair) {
-    if (millis() - TSPair  > PAIR_INTERVAL ) {
-      TSPair = 0;
-      ReadyToPair = false;
-      Mode = S_MENU;
-    }
-    else Mode = S_PAIRING;
-  }
-  else if (millis() - TSTouch > TOUCH_INTERVAL) {
-    if (TouchRead() > 1) {
-      //Serial.print("Touch:"); Serial.println(Touch.Gesture);
+  
+  if (millis() - TSTouch > TOUCH_INTERVAL) {
+    //Serial.println("Touch-Intervall");
+    
+    int TouchErg = TouchRead();
+    /*Serial.print("TouchRead()="); Serial.print(TouchErg);
+    Serial.print(" --- x0="); Serial.print(Touch.x0);
+    Serial.print(", y0="); Serial.print(Touch.y0);
+    Serial.print(", x1="); Serial.print(Touch.x1);
+    Serial.print(", y1="); Serial.print(Touch.y1);
+    Serial.print(", Gesture="); Serial.println(Touch.Gesture);
+    */
+    if (TouchErg > 1) {
+      Serial.print("Touch:"); Serial.println(Touch.Gesture);
       //S_MENU
       switch (Mode) {
         case S_MENU    : 
@@ -201,11 +213,11 @@ void loop() {
                 case 0: Mode = S_SENSOR1; break;
                 case 1: Mode = S_SWITCH1; break;
                 case 2: Mode = S_SWITCH4; break;
-                case 3: Mode = S_PEERS; break;
+                case 3: Mode = S_JSON;    break;
               } 
               break;
-            case SWIPE_LEFT:  break;
-            case SWIPE_RIGHT: break;
+            case SWIPE_LEFT:  Mode = S_PEERS; break;
+            case SWIPE_RIGHT: Mode = S_PEER;  break;
             case SWIPE_UP:    break;
           }
           break;
@@ -223,6 +235,7 @@ void loop() {
             case SWIPE_LEFT:  ActiveSens = NextSwitch(); break;
             case SWIPE_RIGHT: ActiveSens = PrevSwitch(); break;
             case SWIPE_UP:    Mode = S_MENU; break;
+            case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;
         case S_SWITCH4 : 
@@ -253,8 +266,8 @@ void loop() {
                               else if (ButtonHit(10)) SendCommand("SleepMode On");
                               else if (ButtonHit(11)) SendCommand("Debug On");
                               break;
-            case SWIPE_LEFT:  ActivePeer = NextBat(); break; //Sensor oder Peer +
-            case SWIPE_RIGHT: ActivePeer = PrevBat(); break; //Sensor oder Peer -
+            case SWIPE_LEFT:  ActivePeer = NextPeer(); break; //Sensor oder Peer +
+            case SWIPE_RIGHT: ActivePeer = PrevPeer(); break; //Sensor oder Peer -
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
@@ -277,13 +290,38 @@ void loop() {
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;
-        //case S_SETTING : ShowSetting(); break;
       }
     }
+  TSTouch = millis();
+  ScreenUpdate();  
   }
-  ScreenUpdate();
 }
-
+void ScreenUpdate() {
+  if (!TSMsgStart) {
+    switch (Mode) {
+      case S_PAIRING: ShowPairingScreen(); break;
+      case S_SENSOR1: 
+          if (isSensorAmp (P[ActivePeer].S[ActiveSens].Type)) {
+            RingMeter(0, 30, "Amp", GREEN2RED);
+          }
+          else if (isSensorVolt(P[ActivePeer].S[ActiveSens].Type)) {
+            RingMeter(0, 16, "Volt", GREEN2RED);
+          }
+          else ShowMessage("No Sensor");
+        break;          
+      case S_SENSOR4:   ShowSensor4();  break;  
+      case S_SWITCH1:   ShowSwitch1();  break;
+      case S_SWITCH4:   ShowSwitch4();  break;
+      
+      case S_JSON:      ShowJSON();    break;  
+      case S_PEER:      ShowPeer();    break;
+      case S_PEERS:     ShowPeers();   break;
+      case S_CAL_VOL:   EichenVolt();  break;  
+      case S_MENU:      ShowMenu();    break;        
+    }
+  }
+  PushTFT();
+}
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   char* buff = (char*) incomingData;   
   String BufS;
@@ -435,8 +473,9 @@ void InitModule() {
   TFT.setTextColor(TFT_BLACK, TFT_RED, false);
   TFT.setTextDatum(MC_DATUM); 
   TFT.drawString(VERSION, 120,60);
-  TSMsgStart = millis();
-
+  
+  TSMsgStart = 0;
+  
   Serial.println("InitModule() fertig...");
 }
 void SavePeers() {
@@ -507,6 +546,7 @@ void GetPeers() {
       }
     }
   }
+  if (PeerCount) { ActivePeer = 0; ActiveSens = 0; }
   preferences.end();
 }
 void ReportPeers() {
@@ -532,7 +572,7 @@ void ReportPeers() {
     TFT.print(P[Pi].Name); TFT.print(" - Type:"); TFT.print(P[Pi].Type);
     TFT.print(" - MAC:"); TFT.println(macStr);
   }
-  delay(5000);
+  //delay(5000);
 }
 void RegisterPeers() {
   esp_now_peer_info_t peerInfo;
@@ -609,8 +649,8 @@ bool ButtonHit(int b) {
   return ( ((Touch.x1>Button[b].x) and (Touch.x1<Button[b].x+Button[b].w) and 
             (Touch.y1>Button[b].y) and (Touch.y1<Button[b].y+Button[b].h)) );
 }
-void ShowSensor1(int SNr) {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(SNr))) {
+void ShowSensor1() {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActiveSens))) {
     ScreenChanged = true;   
     OldMode = Mode;          
 
@@ -618,62 +658,24 @@ void ShowSensor1(int SNr) {
     TFTBuffer.setTextDatum(MC_DATUM);
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);       
         
-    switch(P[ActivePeer].S[SNr].Type) {
-      case SENS_TYPE_AMP:  RingMeter(TempValue[0], 0, 30, "Amp", P[ActivePeer].S[SNr].Name, GREEN2RED);  break;
-      case SENS_TYPE_VOLT: RingMeter(TempValue[0], 0, 15, "Volt", P[ActivePeer].S[SNr].Name, GREEN2RED); break;
+    switch(P[ActivePeer].S[ActiveSens].Type) {
+      case SENS_TYPE_AMP:  RingMeter(0, 30, "Amp",  GREEN2RED); break;
+      case SENS_TYPE_VOLT: RingMeter(0, 15, "Volt", GREEN2RED); break;
     }
     
     TSScreenRefresh = millis();
 
-    P[ActivePeer].S[SNr].OldValue = P[ActivePeer].S[SNr].Value; 
+    P[ActivePeer].S[ActiveSens].OldValue = P[ActivePeer].S[ActiveSens].Value; 
   } 
 }
-void ShowSwitch1(int SNr) {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(SNr))) {
-    ScreenChanged = true;
-    OldMode = Mode;
-  
-    TFTBuffer.pushImage(0,0, 240, 240, Btn);
-    TFTBuffer.loadFont(AA_FONT_LARGE); 
-
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    
-    TFTBuffer.drawString(P[ActivePeer].S[SNr].Name, 120,130);
-
-    TFTBuffer.unloadFont(); 
-
-    TFTBuffer.loadFont(AA_FONT_SMALL);
-    TFTBuffer.drawString(P[ActivePeer].Name, 120,160);
-    TFTBuffer.unloadFont();
-
-         if (P[ActivePeer].S[ActiveSens].Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
-    else if (P[ActivePeer].S[ActiveSens].Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
-
-    TSScreenRefresh = millis();
-
-    P[ActivePeer].S[SNr].OldValue = P[ActivePeer].S[ActiveSens].Value; 
-  } 
-}
-void ShowPairingScreen() {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
-    ScreenChanged = true;             
-    OldMode = Mode;
-
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.loadFont(AA_FONT_LARGE); 
-
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
-
-    TFTBuffer.drawString("Pairing...", 120, 120);
-    TSScreenRefresh = millis(); 
-  }
-}
-void ShowSensor4(float Value[4]) {
+void ShowSensor4() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
     ScreenChanged = true;  
-    OldMmode = Mode;           
+    OldMode = Mode;           
+
+    noInterrupts(); 
+      for (int Si=0; Si<4; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value;  
+    interrupts();
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
     TFTBuffer.setTextDatum(MC_DATUM);
@@ -687,7 +689,7 @@ void ShowSensor4(float Value[4]) {
           TFTBuffer.loadFont(AA_FONT_LARGE); 
           TFTBuffer.drawString(P[ActivePeer].S[Si].Name,  60+Col*120, 30+Row*120);
           //Format Output
-          dtostrf(Value[Si], 0, 2, Buf);
+          dtostrf(TempValue[Si], 0, 2, Buf);
           TFTBuffer.drawString(Buf, 60+Col*120, 90+Row*120);
           TFTBuffer.unloadFont();
         }
@@ -695,7 +697,7 @@ void ShowSensor4(float Value[4]) {
           TFTBuffer.loadFont(AA_FONT_LARGE); 
           TFTBuffer.drawString(P[ActivePeer].S[Si].Name,  60+Col*120, 30+Row*120);
           //Format Output
-          dtostrf(P[ActivePeer].S[Si].Value, 0, 2, Buf);
+          dtostrf(TempValue[Si], 0, 2, Buf);
           TFTBuffer.drawString(Buf, 60+Col*120, 90+Row*120);
           TFTBuffer.unloadFont();
         }
@@ -707,8 +709,57 @@ void ShowSensor4(float Value[4]) {
     TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
     TFTBuffer.unloadFont(); 
     
+    noInterrupts(); 
+      for (int Si=0; Si<4; Si++) P[ActivePeer].S[Si].Changed = false;
+    interrupts();
+
     TSScreenRefresh = millis(); 
   }
+}
+void ShowMessage(char *Msg) {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;             
+    OldMode = Mode;
+
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.loadFont(AA_FONT_LARGE); 
+
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
+
+    TFTBuffer.drawString(Msg, 120, 120);
+    TSScreenRefresh = millis(); 
+  }
+}
+void ShowSwitch1() {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActiveSens))) {
+    ScreenChanged = true;
+    OldMode = Mode;
+  
+    TFTBuffer.pushImage(0,0, 240, 240, Btn);
+    TFTBuffer.loadFont(AA_FONT_LARGE); 
+
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    
+    TFTBuffer.drawString(P[ActivePeer].S[ActiveSens].Name, 120,130);
+
+    TFTBuffer.unloadFont(); 
+
+    TFTBuffer.loadFont(AA_FONT_SMALL);
+    TFTBuffer.drawString(P[ActivePeer].Name, 120,160);
+    TFTBuffer.unloadFont();
+
+         if (P[ActivePeer].S[ActiveSens].Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
+    else if (P[ActivePeer].S[ActiveSens].Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
+
+    TSScreenRefresh = millis();
+
+    //P[ActivePeer].S[SNr].OldValue = P[ActivePeer].S[ActiveSens].Value;
+    noInterrupts(); 
+      P[ActivePeer].S[ActiveSens].Changed = false;  
+    interrupts(); 
+  } 
 }
 void ShowSwitch4() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
@@ -736,10 +787,26 @@ void ShowSwitch4() {
 
     TSScreenRefresh = millis(); 
 }
+void ShowPairingScreen() {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;             
+    OldMode = Mode;
+
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.loadFont(AA_FONT_LARGE); 
+
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
+
+    TFTBuffer.drawString("Pairing...", 120, 120);
+    TSScreenRefresh = millis(); 
+  }
+}
 void ShowJSON() {
   if (((TSScreenRefresh - millis() > SCREEN_INTERVAL) and (jsondata != "") or (Mode != OldMode))) {
     ScreenChanged = true;
     OldMode = Mode;
+
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
     TFTBuffer.loadFont(AA_FONT_SMALL);
     
@@ -767,27 +834,31 @@ void ShowJSON() {
     TSScreenRefresh = millis();
   }
 }
-void ShowPeer(int PNr) {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
-    OldMode = Mode;
-    ScreenChanged = true;
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
-    TFTBuffer.loadFont(AA_FONT_SMALL);
-    
-    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-    TFTBuffer.setTextDatum(TC_DATUM);
-    
-    TFTBuffer.drawString(P[PNr].Name, 120, 200); 
+void ShowPeer() {
+  if (ActivePeer != LEER) { 
+    if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+      OldMode = Mode;
+      ScreenChanged = true;
 
-    DrawButton(5);
-    DrawButton(6);
-    DrawButton(7);
-    DrawButton(8);
-    DrawButton(9);
-    DrawButton(10);
+      TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+      TFTBuffer.loadFont(AA_FONT_SMALL);
+      
+      TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+      TFTBuffer.setTextDatum(TC_DATUM);
+      
+      TFTBuffer.drawString(P[ActivePeer].Name, 120, 200); 
 
-    TSScreenRefresh = millis();
+      DrawButton(5);
+      DrawButton(6);
+      DrawButton(7);
+      DrawButton(8);
+      DrawButton(9);
+      DrawButton(10);
+
+      TSScreenRefresh = millis();
+    }
   }
+  else { ShowMessage("No Peer"); }
 }
 void ShowPeers() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -832,50 +903,6 @@ void ShowPeers() {
     TSScreenRefresh = millis();
   }
 }
-void ScreenUpdate() {
-  if (!TSMsgStart) {
-    switch (Mode) {
-      case S_PAIRING:
-        if (Mode != OldMode) { ShowPairingScreen(); OldMode = Mode; }
-        break;
-      case S_SENSOR1: 
-        if ((Mode != OldMode) or (SensorChanged(ActiveSens))) {
-          ScreenChanged = true;
-          noInterrupts(); 
-            TempValue[0] = P[ActivePeer].S[ActiveSens].Value; 
-            P[ActivePeer].S[ActiveSens].Changed = false; 
-          interrupts();
-          if      (isSensorAmp (P[ActivePeer].S[ActiveSens].Type)) {
-            RingMeter(TempValue[0], 0, 30, "Amp", P[ActivePeer].S[ActiveSens].Name, GREEN2RED);
-          }
-          else if (isSensorVolt(P[ActivePeer].S[ActiveSens].Type)) {
-            RingMeter(TempValue[0], 0, 16, "Volt", P[ActivePeer].S[ActiveSens].Name, GREEN2RED);
-          }
-          OldMode = Mode;
-        }
-        break;          
-      case S_SENSOR4:
-        if ((Mode != OldMode) or (SensorChanged(0,3))) {
-          ScreenChanged = true; 
-          noInterrupts(); 
-            for (int Si=0; Si<4; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value;  
-          interrupts();
-          
-          ShowSensor4(TempValue);
-          
-          OldMode = Mode;
-          for (int Si=0; Si<4; Si++) P[ActivePeer].S[Si].Changed = false;
-        }
-        break;  
-      case S_JSON:      ShowJSON();           OldMode = Mode; break;  
-      case S_PEER:      ShowPeer(ActivePeer); OldMode = Mode; break;
-      case S_PEERS:     ShowPeers();          OldMode = Mode; break;
-      case S_CAL_VOL:   EichenVolt();         OldMode = Mode; break;  
-      case S_MENU:      ShowMenu();           OldMode = Mode; break;        
-    }
-  }
-  PushTFT();
-}
 void ShowMenu() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
@@ -886,11 +913,11 @@ void PushTFT() {
   SetMsgIndicator();
   
   if (ScreenChanged) {
-    Serial.print("ScreenUpdate: ");
+    /*Serial.print("ScreenUpdate: ");
     Serial.print(UpdateCount);
     Serial.print(" - Gesture: ");
     Serial.println(Touch.Gesture);
-    UpdateCount++;
+    */UpdateCount++;
     TFTBuffer.pushSprite(0, 0);
     ScreenChanged = false;
   }
@@ -949,17 +976,15 @@ void SetMsgIndicator() {
           ScreenChanged = true;
         }
     }
-    if (TSPair) {
-        if (!ReadyToPair) {
-          TFTBuffer.drawSmoothArc(120, 120, 120, 118,   5,  10, TFT_BLACK, TFT_BLACK);
-          MsgPairAktiv = false;
-          ScreenChanged = true;
-        }
-        else if (MsgPairAktiv == false) {
-          TFTBuffer.drawSmoothArc(120, 120, 120, 118,   5,  10, TFT_RED, TFT_BLACK);
-          MsgPairAktiv = true;
-          ScreenChanged = true;
-        }
+    if (!ReadyToPair) {
+      TFTBuffer.drawSmoothArc(120, 120, 120, 118,   5,  10, TFT_BLACK, TFT_BLACK);
+      MsgPairAktiv = false;
+      ScreenChanged = true;
+    }
+    else {
+      TFTBuffer.drawSmoothArc(120, 120, 120, 118,   5,  10, TFT_RED, TFT_BLACK);
+      MsgPairAktiv = true;
+      ScreenChanged = true;
     }
   }
 }
@@ -1120,6 +1145,26 @@ int  PrevBat() {
   }
   return ActivePeer;
 }
+int  NextPeer() {
+  int PNr = ActivePeer;
+  
+  for (int i=0; i<MAX_PEERS; i++) {
+    PNr++;
+    if (PNr == MAX_PEERS) PNr = 0;
+    if (P[PNr].Type != 0) return PNr;
+  }
+  return ActivePeer;
+}
+int  PrevPeer() {
+  int PNr = ActivePeer;
+  
+  for (int i=0; i<MAX_PEERS; i++) {
+    PNr--;
+    if (PNr == -1) PNr = MAX_PEERS-1;
+    if (P[PNr].Type != 0) return PNr;
+  }
+  return ActivePeer;
+}
 int  TouchQuarter(void) {
   if ((Touch.x1<120) and (Touch.y1<120)) return 0;
   if ((Touch.x1>120) and (Touch.y1<120)) return 1;
@@ -1161,27 +1206,33 @@ int  TouchRead() {
     else                                { Touch.Gesture = CLICK; ret = CLICK; }
   }
   else if (!Touch.Touched && !Touch.TouchedOld) {
-    Touch.x0 = TouchX;    // nix
-    Touch.y0 = TouchY;
+    Touch.x0 = 0;    // nix
+    Touch.y0 = 0;
+    Touch.x1 = 0;
+    Touch.y1 = 0;
+    Touch.Gesture = 0;
     Touch.TSFirstTouch = 0;
     Touch.TSReleaseTouch = 0;
     ret = 0;
   }
   Touch.TouchedOld = Touch.Touched;  
 
-  if (ret) { Serial.print("Touch: "); Serial.println(ret);}
   return ret;
 }
-int  RingMeter(float value, float vmin, float vmax, const char *units, const char *bez, byte scheme) {
+int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
   int x = 0;
   int y = 0;
   int r = 120;
   int nk = 0;
   
-  if (Mode != OldMode) TSScreenRefresh = millis();
-  
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or SensorChanged(ActiveSens)) {
     ScreenChanged = true;
+    OldMode = Mode;
+      
+    noInterrupts(); 
+      float value = P[ActivePeer].S[ActiveSens].Value; 
+    interrupts();
+
     char buf[20];
     float fbuf;
   
@@ -1210,7 +1261,7 @@ int  RingMeter(float value, float vmin, float vmax, const char *units, const cha
     TFTBuffer.setTextDatum(TC_DATUM);
     TFTBuffer.drawString(units, 120,150); // Units display
     TFTBuffer.setTextDatum(BC_DATUM);
-    TFTBuffer.drawString(bez, 120,90); // Units display
+    TFTBuffer.drawString(P[ActivePeer].S[ActiveSens].Name, 120,90); // Units display
 
     TFTBuffer.setTextColor(TFT_GREEN, TFT_BLACK);
     
@@ -1293,9 +1344,10 @@ int  RingMeter(float value, float vmin, float vmax, const char *units, const cha
         TFTBuffer.fillTriangle(x1, y1, x2, y2, x3, y3, TFT_GREY);
       }
     }
-    PushTFT();
+    P[ActivePeer].S[ActiveSens].Changed = false; 
     TSScreenRefresh = millis();
   }
+  
   return x + r;
 }
 int  CalcField(int x, int y) {
@@ -1361,6 +1413,8 @@ void EichenVolt() {
 
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;
+    OldMode = Mode;
+
     TFTBuffer.pushImage(0,0, 240, 240, Keypad);  
     TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
     TFTBuffer.setTextDatum(MC_DATUM);
