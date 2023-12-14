@@ -17,7 +17,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 0.01"
+#define VERSION   "V 0.70"
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
@@ -54,6 +54,7 @@ void   ShowSensor1();
 void   ShowSensor4();
 void   ShowMenu();
 void   ShowJSON();
+void   ShowSettings();
 void   ShowPeer();
 void   ShowPeers();
 void   ShowPairingScreen();
@@ -93,13 +94,13 @@ struct_Button Button[12] = {
   {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON",      false},   // 2
   { 60, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "DBG",       false},   // 3
   {130, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "Pair",      false},   // 4
-  { 35,  25, 70, 30, TFT_WHITE,   TFT_BLACK, "Restart",   false},   // 5
-  {135,  25, 70, 30, TFT_WHITE,   TFT_BLACK, "Reset",     false},   // 6
-  { 35,  75, 70, 30, TFT_WHITE,   TFT_BLACK, "Pair",      false},   // 7
-  {135,  75, 70, 30, TFT_WHITE,   TFT_BLACK, "Eichen",    false},   // 8
-  { 35, 125, 70, 30, TFT_WHITE,   TFT_BLACK, "VoltCalib", false},   // 9
-  {135, 125, 70, 30, TFT_WHITE,   TFT_BLACK, "Sleep",     false},   // 10
-  {135, 125, 70, 30, TFT_WHITE,   TFT_BLACK, "Debug",     false}    // 11
+  { 45,  25, 70, 30, TFT_RUBICON, TFT_BLACK, "Restart",   false},   // 5
+  {125,  25, 70, 30, TFT_RUBICON, TFT_BLACK, "Reset",     false},   // 6
+  { 45,  75, 70, 30, TFT_RUBICON, TFT_BLACK, "Pair",      false},   // 7
+  {125,  75, 70, 30, TFT_RUBICON, TFT_BLACK, "Eichen",    false},   // 8
+  { 45, 125, 70, 30, TFT_RUBICON, TFT_BLACK, "VoltCalib", false},   // 9
+  {125, 125, 70, 30, TFT_RUBICON, TFT_BLACK, "Sleep",     false},   // 10
+  {125, 125, 70, 30, TFT_RUBICON, TFT_BLACK, "Debug",     false}    // 11
 };
 
 Preferences preferences;
@@ -210,10 +211,10 @@ void loop() {
           switch (Touch.Gesture) {
             case CLICK:       
               switch (TouchQuarter()) {
-                case 0: Mode = S_SENSOR1; break;
-                case 1: Mode = S_SWITCH1; break;
-                case 2: Mode = S_SWITCH4; break;
-                case 3: Mode = S_JSON;    break;
+                case 0: Mode = S_SENSOR1;  break;
+                case 1: Mode = S_SWITCH1;  break;
+                case 2: Mode = S_SWITCH4;  break;
+                case 3: Mode = S_SETTING;  break;
               } 
               break;
             case SWIPE_LEFT:  Mode = S_PEERS; break;
@@ -227,6 +228,7 @@ void loop() {
             case SWIPE_LEFT:  ActiveSens = NextSensor(); break;
             case SWIPE_RIGHT: ActiveSens = PrevSensor(); break;
             case SWIPE_UP:    Mode = S_MENU; break;
+            case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;
         case S_SWITCH1: 
@@ -256,6 +258,16 @@ void loop() {
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;
+        case S_SETTING:
+          switch (Touch.Gesture) {
+            case CLICK:            if (ButtonHit( 2)) Mode = S_JSON;
+                              else if (ButtonHit( 3)) Mode = S_MENU;
+                              else if (ButtonHit( 4)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
+                              else if (ButtonHit( 5)) { ClearPeers(); ESP.restart(); }
+                              break;
+            case SWIPE_UP:    Mode = S_MENU; break;
+            case SWIPE_DOWN:  Mode = S_MENU; break;
+          }
         case S_PEER    : 
           switch (Touch.Gesture) {
             case CLICK:            if (ButtonHit( 5)) SendCommand("Restart");
@@ -300,24 +312,17 @@ void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
       case S_PAIRING: ShowPairingScreen(); break;
-      case S_SENSOR1: 
-          if (isSensorAmp (P[ActivePeer].S[ActiveSens].Type)) {
-            RingMeter(0, 30, "Amp", GREEN2RED);
-          }
-          else if (isSensorVolt(P[ActivePeer].S[ActiveSens].Type)) {
-            RingMeter(0, 16, "Volt", GREEN2RED);
-          }
-          else ShowMessage("No Sensor");
-        break;          
+      case S_SENSOR1:   ShowSensor1();  break;          
       case S_SENSOR4:   ShowSensor4();  break;  
       case S_SWITCH1:   ShowSwitch1();  break;
       case S_SWITCH4:   ShowSwitch4();  break;
       
-      case S_JSON:      ShowJSON();    break;  
-      case S_PEER:      ShowPeer();    break;
-      case S_PEERS:     ShowPeers();   break;
-      case S_CAL_VOL:   EichenVolt();  break;  
-      case S_MENU:      ShowMenu();    break;        
+      case S_JSON:      ShowJSON();     break;  
+      case S_SETTING:   ShowSettings(); break;
+      case S_PEER:      ShowPeer();     break;
+      case S_PEERS:     ShowPeers();    break;
+      case S_CAL_VOL:   EichenVolt();   break;  
+      case S_MENU:      ShowMenu();     break;        
     }
   }
   PushTFT();
@@ -638,9 +643,10 @@ void SendPing() {
 void DrawButton(int z) {
   TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
   TFTBuffer.setTextDatum(MC_DATUM);
+  TFTBuffer.setTextColor(Button[z].TxtColor);
 
-  if (Button[z].Status) TFTBuffer.fillSmoothRoundRect(Button[z].x, Button[z].y, Button[z].w, Button[z].h, 10, Button[z].TxtColor, Button[z].BGColor);
-  TFTBuffer.drawSmoothRoundRect(Button[z].x, Button[z].y, 10, 8, Button[z].w, Button[z].h, Button[z].TxtColor, Button[z].BGColor);
+  if (Button[z].Status) TFTBuffer.fillSmoothRoundRect(Button[z].x, Button[z].y, Button[z].w, Button[z].h, 10, TFT_LIGHTGREY, Button[z].BGColor);
+  TFTBuffer.drawSmoothRoundRect(Button[z].x, Button[z].y, 10, 8, Button[z].w, Button[z].h, TFT_LIGHTGREY, Button[z].BGColor);
   TFTBuffer.drawString(Button[z].Name, Button[z].x+Button[z].w/2, Button[z].y+Button[z].h/2);  
 
    TFTBuffer.unloadFont();
@@ -657,15 +663,14 @@ void ShowSensor1() {
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
     TFTBuffer.setTextDatum(MC_DATUM);
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);       
-        
+      
     switch(P[ActivePeer].S[ActiveSens].Type) {
       case SENS_TYPE_AMP:  RingMeter(0, 30, "Amp",  GREEN2RED); break;
       case SENS_TYPE_VOLT: RingMeter(0, 15, "Volt", GREEN2RED); break;
+      default:             ShowMessage("No Sensor"); break;
     }
     
     TSScreenRefresh = millis();
-
-    P[ActivePeer].S[ActiveSens].OldValue = P[ActivePeer].S[ActiveSens].Value; 
   } 
 }
 void ShowSensor4() {
@@ -732,60 +737,70 @@ void ShowMessage(char *Msg) {
   }
 }
 void ShowSwitch1() {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActiveSens))) {
-    ScreenChanged = true;
-    OldMode = Mode;
-  
-    TFTBuffer.pushImage(0,0, 240, 240, Btn);
-    TFTBuffer.loadFont(AA_FONT_LARGE); 
+  if (ActivePeer > LEER) {
+    if (isPDC(P[ActivePeer].Type)) {
+      if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActiveSens))) {
+        ScreenChanged = true;
+        OldMode = Mode;
+      
+        TFTBuffer.pushImage(0,0, 240, 240, Btn);
+        TFTBuffer.loadFont(AA_FONT_LARGE); 
 
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    
-    TFTBuffer.drawString(P[ActivePeer].S[ActiveSens].Name, 120,130);
+        TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+        TFTBuffer.setTextDatum(MC_DATUM);
+        
+        TFTBuffer.drawString(P[ActivePeer].S[ActiveSens].Name, 120,130);
 
-    TFTBuffer.unloadFont(); 
+        TFTBuffer.unloadFont(); 
 
-    TFTBuffer.loadFont(AA_FONT_SMALL);
-    TFTBuffer.drawString(P[ActivePeer].Name, 120,160);
-    TFTBuffer.unloadFont();
+        TFTBuffer.loadFont(AA_FONT_SMALL);
+        TFTBuffer.drawString(P[ActivePeer].Name, 120,160);
+        TFTBuffer.unloadFont();
 
-         if (P[ActivePeer].S[ActiveSens].Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
-    else if (P[ActivePeer].S[ActiveSens].Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
+            if (P[ActivePeer].S[ActiveSens].Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
+        else if (P[ActivePeer].S[ActiveSens].Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
 
-    TSScreenRefresh = millis();
+        TSScreenRefresh = millis();
 
-    //P[ActivePeer].S[SNr].OldValue = P[ActivePeer].S[ActiveSens].Value;
-    noInterrupts(); 
-      P[ActivePeer].S[ActiveSens].Changed = false;  
-    interrupts(); 
-  } 
+        //P[ActivePeer].S[SNr].OldValue = P[ActivePeer].S[ActiveSens].Value;
+        noInterrupts(); 
+          P[ActivePeer].S[ActiveSens].Changed = false;  
+        interrupts(); 
+      } 
+    } 
+    else ShowMessage("no Switch");
+  }
+  else ShowMessage("no Peer");
 }
 void ShowSwitch4() {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
-    ScreenChanged = true;     
-    OldMode = Mode;        
+  if (ActivePeer > LEER) {
+    if (isPDC(P[ActivePeer].Type)) 
+     if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
+        ScreenChanged = true;     
+        OldMode = Mode;        
 
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
-    TFTBuffer.loadFont(AA_FONT_SMALL);  
+        TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+        TFTBuffer.setTextDatum(MC_DATUM);
+        TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
+        TFTBuffer.loadFont(AA_FONT_SMALL);  
 
-    int Si = 0;
-      for (int Row=0; Row<2; Row++) {
-        for (int Col=0; Col<2; Col++) {
-          TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-          TFTBuffer.drawString(P[ActivePeer].S[Si].Name, 70+Col*100, 85+Row*90);
+        int Si = 0;
+        for (int Row=0; Row<2; Row++) {
+          for (int Col=0; Col<2; Col++) {
+            if (isSwitch(P[ActivePeer].S[Si].Type)) {
+              TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
+              TFTBuffer.drawString(P[ActivePeer].S[Si].Name, 70+Col*100, 85+Row*90);
+            }
+          }
+          Si++;
         }
-        Si++;
+        TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+        TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
+        TFTBuffer.unloadFont(); 
       }
-    }
-
-    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-    TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
-    TFTBuffer.unloadFont(); 
-
-    TSScreenRefresh = millis(); 
+      TSScreenRefresh = millis(); 
+  }
+  else ShowMessage("no PDC");
 }
 void ShowPairingScreen() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -831,6 +846,27 @@ void ShowJSON() {
       }
       jsondata = "";
     }
+    TSScreenRefresh = millis();
+  }
+}
+void ShowSettings() {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    OldMode = Mode;
+    ScreenChanged = true;
+
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
+    TFTBuffer.loadFont(AA_FONT_SMALL);
+    
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+    TFTBuffer.setTextDatum(TC_DATUM);
+    
+    TFTBuffer.drawString("Settings", 120, 200); 
+
+    DrawButton(2);
+    DrawButton(3);
+    DrawButton(4);
+    DrawButton(6);
+
     TSScreenRefresh = millis();
   }
 }
@@ -1068,40 +1104,48 @@ bool SensorChanged(int Start, int Stop) {
 int  NextSensor(){
   int SNr = ActiveSens;
   
-  for (int i=0; i<MAX_PERIPHERALS; i++) {
-    SNr++;
-    if (SNr == MAX_PERIPHERALS) SNr = 0;
-    if ((P[ActivePeer].S[SNr].Type == SENS_TYPE_AMP) or (P[ActivePeer].S[SNr].Type == SENS_TYPE_VOLT)) return SNr;
+  if (ActiveSens > LEER) {
+    for (int i=0; i<MAX_PERIPHERALS; i++) {
+      SNr++;
+      if (SNr == MAX_PERIPHERALS) SNr = 0;
+      if ((P[ActivePeer].S[SNr].Type == SENS_TYPE_AMP) or (P[ActivePeer].S[SNr].Type == SENS_TYPE_VOLT)) return SNr;
+    }
   }
   return ActiveSens;
 }
 int  PrevSensor() {
   int SNr = ActiveSens;
   
-  for (int i=0; i<MAX_PERIPHERALS; i++) {
-    SNr--;
-    if (SNr == -1) SNr = MAX_PERIPHERALS-1;
-    if ((P[ActivePeer].S[SNr].Type == SENS_TYPE_AMP) or (P[ActivePeer].S[SNr].Type == SENS_TYPE_VOLT)) return SNr;
+  if (ActiveSens > LEER) {
+    for (int i=0; i<MAX_PERIPHERALS; i++) {
+      SNr--;
+      if (SNr == -1) SNr = MAX_PERIPHERALS-1;
+      if ((P[ActivePeer].S[SNr].Type == SENS_TYPE_AMP) or (P[ActivePeer].S[SNr].Type == SENS_TYPE_VOLT)) return SNr;
+    }
   }
   return ActiveSens;
 }
 int  NextSwitch(){
   int SNr = ActiveSens;
   
-  for (int i=0; i<MAX_PERIPHERALS; i++) {
-    SNr++;
-    if (SNr == MAX_PERIPHERALS) SNr = 0;
-    if (P[ActivePeer].S[SNr].Type == SENS_TYPE_SWITCH) return SNr;
+  if (ActiveSens > LEER) {
+    for (int i=0; i<MAX_PERIPHERALS; i++) {
+      SNr++;
+      if (SNr == MAX_PERIPHERALS) SNr = 0;
+      if (P[ActivePeer].S[SNr].Type == SENS_TYPE_SWITCH) return SNr;
+    }
   }
   return ActiveSens;
 }
 int  PrevSwitch() {
   int SNr = ActiveSens;
   
-  for (int i=0; i<MAX_PERIPHERALS; i++) {
-    SNr--;
-    if (SNr == -1) SNr = MAX_PERIPHERALS-1;
-    if (P[ActivePeer].S[SNr].Type == SENS_TYPE_SWITCH) return SNr;
+  if (ActiveSens > LEER) {
+    for (int i=0; i<MAX_PERIPHERALS; i++) {
+      SNr--;
+      if (SNr == -1) SNr = MAX_PERIPHERALS-1;
+      if (P[ActivePeer].S[SNr].Type == SENS_TYPE_SWITCH) return SNr;
+    }
   }
   return ActiveSens;
 }
