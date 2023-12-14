@@ -303,8 +303,7 @@ void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
       case S_PAIRING:   ShowPairingScreen(); break;
-      case S_SENSOR1:   if ((AvailBat) and (!isBat(ActivePeer)) ActivePeer = NextBat();  
-                        ShowSensor1();  break;          
+      case S_SENSOR1:   if (isBat(ActivePeer));  ShowSensor1();  break;          
       case S_SENSOR4:   ShowSensor4();  break;  
       case S_SWITCH1:   ShowSwitch1();  break;
       case S_SWITCH4:   ShowSwitch4();  break;
