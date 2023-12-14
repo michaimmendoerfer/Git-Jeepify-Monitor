@@ -1,9 +1,6 @@
 #include <Arduino.h>
 #include "../../jeepify.h"
 #include <TFT_eSPI.h>
-//#include <SPI.h>
-//#include <SPIFFS.h>
-//#include "../../renegade_members.h"
 #include "pix.h"
 #include <esp_now.h>
 #include <WiFi.h>
@@ -31,6 +28,8 @@ void   ClearPeers();
 void   ClearInit();
 
 void   SendPing();
+void   ToggleSwitch (int Si);
+void   SendCommand(String Cmd);
 
 void   SetSleepMode(bool Mode);
 void   SetDebugMode(bool Mode);
@@ -40,9 +39,6 @@ bool   ButtonHit(int b);
 int    CalcField(int x, int y);
 void   AddVolt(int i);
 void   EichenVolt();
-
-void   ToggleSwitch (int Si);
-void   SendCommand(String Cmd);
 
 void   SetMsgIndicator();
 void   ScreenUpdate();
@@ -68,12 +64,16 @@ bool   isSwitch(int Type);
 bool   isSensor(int Type);
 bool   isSensorAmp (int Type);
 bool   isSensorVolt(int Type);
+int    FirstSensor();
 int    NextSensor();
 int    PrevSensor();
+int    FirstSwitch();
 int    NextSwitch();
 int    PrevSwitch();
+int    FirstBat();
 int    NextBat();
 int    PrevBat();
+int    FirstPDC();
 int    NextPDC();
 int    PrevPDC();
 int    NextPeer();
@@ -193,16 +193,7 @@ void loop() {
   }
   
   if (millis() - TSTouch > TOUCH_INTERVAL) {
-    //Serial.println("Touch-Intervall");
-    
     int TouchErg = TouchRead();
-    /*Serial.print("TouchRead()="); Serial.print(TouchErg);
-    Serial.print(" --- x0="); Serial.print(Touch.x0);
-    Serial.print(", y0="); Serial.print(Touch.y0);
-    Serial.print(", x1="); Serial.print(Touch.x1);
-    Serial.print(", y1="); Serial.print(Touch.y1);
-    Serial.print(", Gesture="); Serial.println(Touch.Gesture);
-    */
     if (TouchErg > 1) {
       Serial.print("Touch:"); Serial.println(Touch.Gesture);
       //S_MENU
@@ -311,8 +302,9 @@ void loop() {
 void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
-      case S_PAIRING: ShowPairingScreen(); break;
-      case S_SENSOR1:   ShowSensor1();  break;          
+      case S_PAIRING:   ShowPairingScreen(); break;
+      case S_SENSOR1:   if ((AvailBat) and (!isBat(ActivePeer)) ActivePeer = NextBat();  
+                        ShowSensor1();  break;          
       case S_SENSOR4:   ShowSensor4();  break;  
       case S_SWITCH1:   ShowSwitch1();  break;
       case S_SWITCH4:   ShowSwitch4();  break;
@@ -1065,23 +1057,29 @@ void SendCommand(String Cmd) {
   
   jsondata = "";
 }
-bool isPDC(int Type) {
-  return ((Type == SWITCH_1_WAY) or (Type == SWITCH_2_WAY) or (Type == SWITCH_4_WAY) or (Type == SWITCH_8_WAY));      
+bool isPDC(int PNr) {
+  if (PNr > LEER) return ((Type == SWITCH_1_WAY) or (Type == SWITCH_2_WAY) or (Type == SWITCH_4_WAY) or (Type == SWITCH_8_WAY));   
+  return false;   
 }
-bool isPDC1(int Type) {
-  return (Type == SWITCH_1_WAY);      
+bool isPDC1(int PNr) {
+  if (PNr > LEER) return(P[PNr].Type == SWITCH_1_WAY);
+  return false; 
 }
-bool isPDC2(int Type) {
-  return (Type == SWITCH_2_WAY);      
+bool isPDC2(int PNr) {
+  if (PNr > LEER) return(P[PNr].Type == SWITCH_2_WAY);
+  return false; 
 }
-bool isPDC4(int Type) {
-  return (Type == SWITCH_4_WAY);      
+bool isPDC4(int PNr) {
+  if (PNr > LEER) return(P[PNr].Type == SWITCH_4_WAY);
+  return false; 
 }
-bool isPDC8(int Type) {
-  return (Type == SWITCH_8_WAY);      
+bool isPDC8(int PNr) {
+  if (PNr > LEER) return(P[PNr].Type == SWITCH_8_WAY);
+  return false; 
 }
-bool isBat(int Type) {
-  return(Type == BATTERY_SENSOR);
+bool isBat(int PNr) {
+  if (PNr > LEER) return(P[PNr].Type == BATTERY_SENSOR);
+  return false;
 }
 bool isSwitch(int Type) {
   return (Type == SENS_TYPE_SWITCH);      
@@ -1100,6 +1098,12 @@ bool SensorChanged(int Start, int Stop) {
   if (Stop == 99) Stop = Start;
   for (int Si=Start; Si++; Si<Stop+1) if (P[ActivePeer].S[Si].Changed) ret = true;
   return ret;
+}
+int  FirstSensor(){
+  for (int SNr=0; i<MAX_PERIPHERALS; SNr++) {
+      if (isSensor(P[ActivePeer].S[SNr].Type)) return SNr;
+  }
+  return -1;
 }
 int  NextSensor(){
   int SNr = ActiveSens;
@@ -1125,6 +1129,12 @@ int  PrevSensor() {
   }
   return ActiveSens;
 }
+int  FirstSwitch(){
+  for (int SNr=0; i<MAX_PERIPHERALS; SNr++) {
+      if (isSwitch(P[ActivePeer].S[SNr].Type)) return SNr;
+  }
+  return -1;
+}
 int  NextSwitch(){
   int SNr = ActiveSens;
   
@@ -1149,6 +1159,12 @@ int  PrevSwitch() {
   }
   return ActiveSens;
 }
+int  FirstPDC() {
+  for (int PNr=0; i<MAX_PEERS; PNr++) {
+    if (isPDC(P[PNr].Type)) return PNr;
+  }
+  return -1;
+}
 int  NextPDC() {
   int PNr = ActivePeer;
   
@@ -1168,6 +1184,12 @@ int  PrevPDC() {
     if (isPDC(P[PNr].Type)) return PNr;
   }
   return ActivePeer;
+}
+int  FirstBat() {
+  for (int PNr=0; i<MAX_PEERS; PNr++) {
+    if (isBat(P[PNr].Type)) return PNr;
+  }
+  return -1;
 }
 int  NextBat() {
   int PNr = ActivePeer;
@@ -1490,12 +1512,10 @@ void ForceEichen() {
 
   TSMsgEich = millis();
 }
-float mapf(float x, float in_min, float in_max, float out_min, float out_max)
-{
+float mapf(float x, float in_min, float in_max, float out_min, float out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
-unsigned int rainbow(byte value)
-{
+unsigned int rainbow(byte value) {
   // Value is expected to be in range 0-127
   // The value is converted to a spectrum colour from 0 = blue through to 127 = red
 
