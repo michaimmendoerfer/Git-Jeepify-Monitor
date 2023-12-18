@@ -14,7 +14,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 0.70"
+#define VERSION   "V 0.74"
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
@@ -45,15 +45,15 @@ void   ScreenUpdate();
 void   PushTFT();
 void   ShowMessage(char *Msg);
 void   ShowSwitch1();
-void   ShowSwitch4();
+void   ShowSwitch4(int Start=0);
 void   ShowSensor1();
-void   ShowSensor4();
+void   ShowSensor4(int Start=0);
 void   ShowMenu();
 void   ShowJSON();
 void   ShowSettings();
 void   ShowPeer();
 void   ShowPeers();
-void   ShowPairingScreen();
+void   ShowPairing();
 
 int    RingMeter(float vmin, float vmax, const char *units, byte scheme);
 
@@ -72,6 +72,8 @@ struct_Sensor *FindSensorByNumber(struct_Peer *Peer, int Id);
 struct_Sensor *FindFirstSensor(struct_Peer *Peer, int Type);
 struct_Sensor *FindNextSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type=SENS_TYPE_EQUAL);
 struct_Sensor *FindPrevSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type=SENS_TYPE_EQUAL);
+struct_Peer   *FindPeerByName(String Name);
+struct_Peer   *FindEmptyPeer();
 struct_Peer   *FindFirstPeer(int Type=MODULE_ALL);
 struct_Peer   *FindNextPeer (struct_Peer *Peer, int Type=MODULE_ALL);
 struct_Peer   *FindPrevPeer (struct_Peer *Peer, int Type=MODULE_ALL);
@@ -91,13 +93,17 @@ struct_Button Button[12] = {
   {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON",      false},   // 2
   { 60, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "DBG",       false},   // 3
   {130, 190, 50, 30, TFT_RUBICON, TFT_BLACK, "Pair",      false},   // 4
-  { 45,  25, 70, 30, TFT_RUBICON, TFT_BLACK, "Restart",   false},   // 5
-  {125,  25, 70, 30, TFT_RUBICON, TFT_BLACK, "Reset",     false},   // 6
-  { 45,  75, 70, 30, TFT_RUBICON, TFT_BLACK, "Pair",      false},   // 7
-  {125,  75, 70, 30, TFT_RUBICON, TFT_BLACK, "Eichen",    false},   // 8
-  { 45, 125, 70, 30, TFT_RUBICON, TFT_BLACK, "VoltCalib", false},   // 9
-  {125, 125, 70, 30, TFT_RUBICON, TFT_BLACK, "Sleep",     false},   // 10
-  {125, 125, 70, 30, TFT_RUBICON, TFT_BLACK, "Debug",     false}    // 11
+  
+  { 45,  25, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Restart",   false},   // 5
+  {125,  25, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Reset",     false},   // 6
+  { 45,  75, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Pair",      false},   // 7
+  {125,  75, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Eichen",    false},   // 8
+  { 45, 125, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "VoltCalib", false},   // 9
+  {125, 125, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Sleep",     false},   // 10
+  {125, 125, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Debug",     false}    // 11
+  
+
+
 };
 
 Preferences preferences;
@@ -122,6 +128,8 @@ float VoltCalib;
 int   VoltCount;
 
 float TempValue[8] = {0,0,0,0,0,0,0,0};
+int FirstDisplayedSwitch = 0;
+int FirstDisplayedSensor = 0;
 
 uint32_t TSTouch         = 0;
 uint32_t TSPing          = 0;
@@ -150,6 +158,116 @@ TFT_eSprite TFTGaugeSwitch = TFT_eSprite(&TFT);
 
 CST816D TouchHW(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
 
+void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
+  char* buff = (char*) incomingData;   
+  String BufS;
+
+  jsondata = "";  jsondata = String(buff);                 
+  Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(jsondata);    
+  
+  DeserializationError error = deserializeJson(doc, jsondata);
+
+  if (!error) {
+    struct_Peer *Peer = FindPeerByName(doc["Node"]);
+    TSMsgRcv = millis();
+
+    if (Peer) {
+      if (isBat(Peer)) TSMsgBat = TSMsgRcv;
+      if (isPDC(Peer)) TSMsgPDC = TSMsgRcv;
+      
+      for (int i=0; i<MAX_PERIPHERALS; i++) {
+        if (doc.containsKey(Peer->S[i].Name)) {
+          float TempSensor = (float)doc[Peer->S[i].Name];
+      
+          if (TempSensor != Peer->S[i].Value) {
+            Peer->S[i].Value = TempSensor;
+            Peer->S[i].Changed = true;
+          }
+        }
+        if (doc.containsKey("Sleep")) Peer->Sleep = (bool) doc["Sleep"];
+        if (doc.containsKey("Debug")) Peer->Debug = (bool) doc["Debug"];
+      } 
+    } 
+    else if (ReadyToPair) {
+      bool PairingSuccess = false;
+      char Buf[10] = {};
+      char BufB[5] = {};
+
+      if (doc["Pairing"] == "add me") { 
+        if (esp_now_is_peer_exist(mac)) { 
+          PrintMAC(mac); Serial.println(" already exists...");
+          PairingSuccess = true;
+          
+          jsondata = "";  doc.clear();
+          doc["Node"]    = NODE_NAME;   
+          doc["Pairing"] = "you are paired";
+
+          serializeJson(doc, jsondata);  
+          esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
+          Serial.print("Sending you are paired"); 
+          Serial.println(jsondata);
+        }
+        else { // neuer Peer
+          Peer = FindEmptyPeer();
+
+          if (Peer) {
+            for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
+            strcpy(Peer->Name, doc["Node"]);
+            Peer->Type = doc["Type"];
+            Peer->TSLastSeen = millis();
+            
+            for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
+              sprintf(Buf, "T%d", Si);        // Type0
+              if (doc.containsKey(Buf)) {
+                Peer->S[Si].Type = doc[Buf];
+                sprintf(Buf, "N%d", Si);      // Name0
+                strcpy(Peer->S[Si].Name, doc[Buf]);
+                Peer->S[Si].Id = Si;
+              }
+            }   
+
+            esp_now_peer_info_t peerInfo;
+            peerInfo.channel = 0;
+            peerInfo.encrypt = false;
+            memset(&peerInfo, 0, sizeof(peerInfo));
+
+            for (int ii = 0; ii < 6; ++ii ) peerInfo.peer_addr[ii] = (uint8_t) mac[ii];
+            if (esp_now_add_peer(&peerInfo) != ESP_OK) { 
+              Serial.println("Failed to add peer");
+            }
+            else { 
+              Serial.println(Peer->Name); 
+              PrintMAC(mac); Serial.println(" peer added...");
+              
+              PairingSuccess = true; 
+              jsondata = "";  doc.clear();
+              
+              doc["Node"]    = NODE_NAME;   
+              doc["Pairing"] = "you are paired";
+              doc["Type"]    = MONITOR_ROUND;
+
+              serializeJson(doc, jsondata);  
+              esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
+              Serial.print("Sending you are paired"); 
+              Serial.println(jsondata);
+              ReadyToPair = false; TSPair = 0;
+            }
+          }
+          if (!PairingSuccess) { PrintMAC(mac); Serial.println(" adding failed..."); } 
+          else  {
+            Serial.println("Saving Peers...");
+            SavePeers();
+          }
+        }
+      }
+    }
+  }
+  else {                                            // Error
+    Serial.print(F("deserializeJson() failed: "));  //Just in case of an ERROR of ArduinoJSon
+    Serial.println(error.f_str());
+    return;
+  }
+}
 void setup() {
   Serial.begin(74880);
 
@@ -162,7 +280,7 @@ void setup() {
   Serial.println("InitModule...");
   InitModule();
   Debug = true;
-
+  //ClearPeers();
   Serial.println("GetPeers...");
   GetPeers();
   Serial.println("ReportPeers...");
@@ -182,17 +300,14 @@ void loop() {
     Mode = S_MENU;
     TSMsgStart = 0;
   }*/
-  if (millis() - TSPing > PING_INTERVAL) {
+  if (millis() - TSPing  > PING_INTERVAL)  {
     TSPing = millis();
     SendPing();
     Serial.println("Ping fertig");
   }
-  
   if (millis() - TSTouch > TOUCH_INTERVAL) {
     int TouchErg = TouchRead();
     if (TouchErg > 1) {
-      Serial.print("Touch:"); Serial.println(Touch.Gesture);
-      //S_MENU
       switch (Mode) {
         case S_MENU    : 
           switch (Touch.Gesture) {
@@ -228,9 +343,19 @@ void loop() {
           break;
         case S_SENSOR1: 
           switch (Touch.Gesture) {
-            case CLICK:       ActiveSens = FindNextSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); ScreenChanged = true; break;
+            case CLICK:       
+              Serial.print("vorher: "); Serial.println(ActiveSens->Name);
+              ActiveSens = FindNextSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+              ScreenChanged = true; 
+              Serial.print("nachher: "); Serial.println(ActiveSens->Name);
+              break;
             case SWIPE_LEFT:  ActiveSens = FindNextSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); ScreenChanged = true; break;
-            case SWIPE_RIGHT: ActiveSens = FindPrevSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); ScreenChanged = true; break;
+            case SWIPE_RIGHT: 
+              Serial.print("vorher: "); Serial.println(ActiveSens->Name);
+              ActiveSens = FindPrevSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+              ScreenChanged = true; 
+              Serial.print("nachher: "); Serial.println(ActiveSens->Name);
+              break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
@@ -252,10 +377,10 @@ void loop() {
           break;
         case S_SETTING:
           switch (Touch.Gesture) {
-            case CLICK:            if (ButtonHit( 2)) Mode = S_JSON;
-                              else if (ButtonHit( 3)) Mode = S_MENU;
-                              else if (ButtonHit( 4)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
-                              else if (ButtonHit( 5)) { ClearPeers(); ESP.restart(); }
+            case CLICK:            if (ButtonHit( 5)) ESP.restart(); 
+                              else if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
+                              else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
+                              else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
                               break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
@@ -294,6 +419,10 @@ void loop() {
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;
+        case S_PAIRING: 
+          switch (Touch.Gesture) {
+            case CLICK: TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
+          }
       }
     }
   TSTouch = millis();
@@ -303,8 +432,8 @@ void loop() {
 void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
-      case S_PAIRING:   ShowPairingScreen(); break;
-      case S_SENSOR1:   if (isBat(ActivePeer));  ShowSensor1();  break;          
+      case S_PAIRING:   ShowPairing();  break;
+      case S_SENSOR1:   ShowSensor1();  break;          
       case S_SENSOR4:   ShowSensor4();  break;  
       case S_SWITCH1:   ShowSwitch1();  break;
       case S_SWITCH4:   ShowSwitch4();  break;
@@ -318,143 +447,6 @@ void ScreenUpdate() {
     }
   }
   PushTFT();
-}
-void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
-  char* buff = (char*) incomingData;   
-  String BufS;
-
-  jsondata = "";  jsondata = String(buff);                 
-  Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(jsondata);    
-  
-  DeserializationError error = deserializeJson(doc, jsondata);
-
-  if (!error) {
-    TSMsgRcv = millis();
-    bool NodeBekannt = false;
-    int PNr = 0;
-
-    for (PNr=0; PNr<MAX_PEERS; PNr++) { 
-      if (doc["Node"] == P[PNr].Name) {
-        NodeBekannt = true; 
-        P[PNr].TSLastSeen = millis();
-        break; 
-      }
-    }    
-    if (NodeBekannt) {      
-      if (isBat(&P[PNr])) TSMsgBat = TSMsgRcv;
-      if (isPDC(&P[PNr])) TSMsgPDC = TSMsgRcv;
-      
-      for (int i=0; i<MAX_PERIPHERALS; i++) {
-        if (doc.containsKey(P[PNr].S[i].Name)) {
-          float TempSensor = (float)doc[P[PNr].S[i].Name];
-      
-          if (TempSensor != P[PNr].S[i].Value) {
-            P[PNr].S[i].OldValue = P[PNr].S[i].Value;
-            P[PNr].S[i].Value = TempSensor;
-            P[PNr].S[i].Changed = true;
-          }
-        }
-      } 
-    } 
-    else if ((ReadyToPair) and (doc.containsKey("Pairing"))) {
-      bool PairingSuccess = false;
-      char Buf[10] = {};
-      char BufB[5] = {};
-
-      if (doc["Pairing"] == "add me") { 
-        //for (int i = 0; i < 6; i++ ) TempBroadcast[i] = (uint8_t) mac[i];
-    
-        bool exists = esp_now_is_peer_exist(mac);
-        if (exists) { 
-          PrintMAC(mac); Serial.println(" already exists...");
-          PairingSuccess = true;
-          
-          jsondata = "";  doc.clear();
-          
-          doc["Node"]    = NODE_NAME;   
-          doc["Pairing"] = "you are paired";
-
-          serializeJson(doc, jsondata);  
-          esp_now_send(P[PNr].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
-          Serial.print("Sending you are paired"); 
-          Serial.println(jsondata);
-        }
-        else { // neuer Peer
-          for (PNr=0; PNr<MAX_PEERS; PNr++) {
-            if ((P[PNr].Type == 0) and (!PairingSuccess)) {
-              P[PNr].Id = PNr;
-
-              for (int b = 0; b < 6; b++ ) P[PNr].BroadcastAddress[b] = mac[b];
-              strcpy(P[PNr].Name, doc["Node"]);
-              P[PNr].Type = doc["Type"];
-              P[PNr].TSLastSeen = millis();
-              
-              int i=0;
-              for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
-                sprintf(Buf, "SA%d", Si); 
-                if (doc.containsKey(Buf)) {
-                  strcpy(P[PNr].S[Si].Name, doc[Buf]);
-                  P[PNr].S[Si].Id = i;
-                  P[PNr].S[Si].Type = SENS_TYPE_AMP;
-                  i++;
-                }
-                sprintf(Buf, "SV%d", Si); 
-                if (doc.containsKey(Buf)) {
-                  strcpy(P[PNr].S[Si].Name, doc[Buf]);
-                  P[PNr].S[Si].Id = i;
-                  P[PNr].S[Si].Type = SENS_TYPE_VOLT;
-                  i++;
-                }
-                sprintf(Buf, "SW%d", Si); 
-                if (doc.containsKey(Buf)) {
-                  strcpy(P[PNr].S[Si].Name, doc[Buf]);
-                  P[PNr].S[Si].Id = i;
-                  P[PNr].S[Si].Type = SENS_TYPE_SWITCH;
-                  i++;
-                }
-              }   
-
-              esp_now_peer_info_t peerInfo;
-              peerInfo.channel = 0;
-              peerInfo.encrypt = false;
-              memset(&peerInfo, 0, sizeof(peerInfo));
-
-              for (int ii = 0; ii < 6; ++ii ) peerInfo.peer_addr[ii] = (uint8_t) mac[ii];
-              if (esp_now_add_peer(&peerInfo) != ESP_OK) { 
-                Serial.println("Failed to add peer");
-              }
-              else { 
-                Serial.println(P[PNr].Name); 
-                PrintMAC(mac); Serial.println(" peer added...");
-                
-                PairingSuccess = true; 
-                jsondata = "";  doc.clear();
-                
-                doc["Node"]    = NODE_NAME;   
-                doc["Pairing"] = "you are paired";
-                doc["Type"]    = MONITOR_ROUND;
-
-                serializeJson(doc, jsondata);  
-                esp_now_send(P[PNr].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
-                Serial.print("Sending you are paired"); 
-                Serial.println(jsondata);
-              }
-            }
-          }
-          if (!PairingSuccess) { PrintMAC(mac); Serial.println(" adding failed..."); } 
-          else  {
-            Serial.println("Saving Peers...");
-            SavePeers();
-          }
-        }
-      }
-    }
-  }
-  else {                                            // Error
-    Serial.print(F("deserializeJson() failed: "));  //Just in case of an ERROR of ArduinoJSon
-    Serial.println(error.f_str());
-    return;
-  }
 }
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { 
   Serial.print("\r\nLast Packet Send Status:\t");
@@ -497,7 +489,7 @@ void InitModule() {
 void SavePeers() {
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
-  char Buf[10] = {}; char BufNr[5] = {}; String BufS;
+  char Buf[50] = {}; char BufNr[5] = {}; String BufS;
 
   PeerCount = 0;
 
@@ -512,13 +504,28 @@ void SavePeers() {
       //P.BroadcastAddress
       strcpy(Buf, "MAC-"); strcat (Buf, BufNr);
       preferences.putBytes(Buf, P[Pi].BroadcastAddress, 6);
-      Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); PrintMAC(P[Pi].BroadcastAddress);
+      Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); PrintMAC(P[Pi].BroadcastAddress); Serial.println();
       
       //P.Name
       strcpy(Buf, "Name-"); strcat(Buf, BufNr);
       BufS = P[Pi].Name;
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(BufS);
-      if (preferences.getString(Buf, "") != BufS) preferences.putString(Buf, BufS);
+      if (preferences.getString(Buf, "EmptyName") != BufS) preferences.putString(Buf, BufS);
+
+      for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
+        sprintf(Buf, "P%d-SensName%d", Pi, Si);
+        BufS = P[Pi].S[Si].Name;
+        Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Name);
+        if (preferences.getString(Buf, "EmptyName") != BufS) preferences.putString(Buf, BufS);
+        
+        sprintf(Buf, "P%d-SensType%d", Pi, Si);
+        Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Type);
+        if (preferences.getInt(Buf, 0) != P[Pi].S[Si].Type) preferences.putInt(Buf, P[Pi].S[Si].Type);
+
+        sprintf(Buf, "P%d-SensId%d", Pi, Si);
+        Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Id);
+        if (preferences.getInt(Buf, 0) != P[Pi].S[Si].Id) preferences.putInt(Buf, P[Pi].S[Si].Id);
+      }
     }
   }
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
@@ -528,13 +535,13 @@ void SavePeers() {
 void GetPeers() {
   preferences.begin("JeepifyPeers", true);
   
-  char Buf[10] = {}; char BufNr[5] = {}; String BufS;
+  char Buf[50] = {}; char BufNr[5] = {}; String BufS;
   
   PeerCount = 0;
   for (int Pi=0; Pi<MAX_PEERS; Pi++) {
     // Peer gefüllt?
     sprintf(BufNr, "%d", Pi); strcpy(Buf, "Type-"); strcat(Buf, BufNr);
-    Serial.print("getInt("); Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
+    Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
     if (preferences.getInt(Buf) > 0) {
       PeerCount++;
       
@@ -553,6 +560,25 @@ void GetPeers() {
       BufS = preferences.getString(Buf);
       strcpy(P[Pi].Name, BufS.c_str());
 
+      Serial.print(Pi); Serial.print(": Type="); Serial.print(P[Pi].Type); 
+      Serial.print(", Name="); Serial.print(P[Pi].Name);
+      Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
+      Serial.println();
+
+      for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
+        sprintf(Buf, "P%d-SensName%d", Pi, Si);
+        BufS = preferences.getString(Buf);
+        strcpy(P[Pi].S[Si].Name, BufS.c_str());
+
+        sprintf(Buf, "P%d-SensType%d", Pi, Si);
+        P[Pi].S[Si].Type = preferences.getInt(Buf, 0);
+        
+        sprintf(Buf, "P%d-SensId%d", Pi, Si);
+        P[Pi].S[Si].Id = preferences.getInt(Buf, 0);
+        
+        sprintf(Buf, "SName%d=%s, SType%d=%d, SId%d=%d", Si, BufS, Si, P[Pi].S[Si].Type, Si, P[Pi].S[Si].Id);
+        Serial.println(Buf);
+      }
       P[Pi].TSLastSeen = millis();
       
       if (Debug) {
@@ -560,6 +586,12 @@ void GetPeers() {
         Serial.print(", Name="); Serial.print(P[Pi].Name);
         Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
         Serial.println();
+        for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
+          sprintf(Buf, "P%d-SensName%d = ", Pi, Si);
+          Serial.print(Buf), Serial.println(P[Pi].S[Si].Name);
+          sprintf(Buf, "P%d-SensType%d = ", Pi, Si);
+          Serial.println(P[Pi].S[Si].Type);
+        }
       }
     }
   }
@@ -687,13 +719,15 @@ void ShowSensor1() {
     TSScreenRefresh = millis();
   } 
 }
-void ShowSensor4() {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
+void ShowSensor4(int Start) {
+  FirstDisplayedSensor = Start;
+  
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActivePeer, Start,Start+3))) {
     ScreenChanged = true;  
     OldMode = Mode;           
 
-    /*noInterrupts(); 
-      for (int Si=0; Si<4; Si++) TempValue[Si] = P[ActivePeer].S[Si].Value;  
+    noInterrupts(); 
+      for (int Si=0; Si<4; Si++) TempValue[Si] = ActivePeer->S[Si].Value;  
     interrupts();
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
@@ -704,17 +738,17 @@ void ShowSensor4() {
     int Si = 0;
     for (int Row=0; Row<2; Row++) {
       for (int Col=0; Col<2; Col++) {
-        if (isSensorAmp (P[ActivePeer].S[Si].Type)) {
+        if (isSensorAmp (&ActivePeer->S[Si])) {
           TFTBuffer.loadFont(AA_FONT_LARGE); 
-          TFTBuffer.drawString(P[ActivePeer].S[Si].Name,  60+Col*120, 30+Row*120);
+          TFTBuffer.drawString(ActivePeer->S[Si].Name,  60+Col*120, 30+Row*120);
           //Format Output
           dtostrf(TempValue[Si], 0, 2, Buf);
           TFTBuffer.drawString(Buf, 60+Col*120, 90+Row*120);
           TFTBuffer.unloadFont();
         }
-        if (isSensorVolt(P[ActivePeer].S[Si].Type)) {
+        if (isSensorVolt(&ActivePeer->S[Si])) {
           TFTBuffer.loadFont(AA_FONT_LARGE); 
-          TFTBuffer.drawString(P[ActivePeer].S[Si].Name,  60+Col*120, 30+Row*120);
+          TFTBuffer.drawString(ActivePeer->S[Si].Name,  60+Col*120, 30+Row*120);
           //Format Output
           dtostrf(TempValue[Si], 0, 2, Buf);
           TFTBuffer.drawString(Buf, 60+Col*120, 90+Row*120);
@@ -725,13 +759,13 @@ void ShowSensor4() {
     }
     TFTBuffer.loadFont(AA_FONT_SMALL); 
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-    TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
+    TFTBuffer.drawString(ActivePeer->Name, 120,15);
     TFTBuffer.unloadFont(); 
     
     noInterrupts(); 
-      for (int Si=0; Si<4; Si++) P[ActivePeer].S[Si].Changed = false;
+      for (int Si=0; Si<4; Si++) ActivePeer->S[Si].Changed = false;
     interrupts();
-    */
+    
     TSScreenRefresh = millis(); 
   }
 }
@@ -779,35 +813,35 @@ void ShowSwitch1() {
     interrupts(); 
   }
 }
-void ShowSwitch4() { 
-     /*if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(0,3))) {
-        ScreenChanged = true;     
-        OldMode = Mode;        
+void ShowSwitch4(int Start) { 
+  FirstDisplayedSwitch = Start;
 
-        TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-        TFTBuffer.setTextDatum(MC_DATUM);
-        TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
-        TFTBuffer.loadFont(AA_FONT_SMALL);  
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActivePeer, Start,Start+3))) {
+    ScreenChanged = true;     
+    OldMode = Mode;        
 
-        int Si = 0;
-        for (int Row=0; Row<2; Row++) {
-          for (int Col=0; Col<2; Col++) {
-            if (isSwitch(P[ActivePeer].S[Si].Type)) {
-              TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-              TFTBuffer.drawString(P[ActivePeer].S[Si].Name, 70+Col*100, 85+Row*90);
-            }
-          }
-          Si++;
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
+    TFTBuffer.loadFont(AA_FONT_SMALL);  
+
+    int Si = Start;
+    for (int Row=0; Row<2; Row++) {
+      for (int Col=0; Col<2; Col++) {
+        if (isSwitch(&ActivePeer->S[Si])) {
+          TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
+          TFTBuffer.drawString(ActivePeer->S[Si].Name, 70+Col*100, 85+Row*90);
         }
-        TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-        TFTBuffer.drawString(P[ActivePeer].Name, 120,15);
-        TFTBuffer.unloadFont(); 
       }
-      TSScreenRefresh = millis(); 
+      Si++;
+    }
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
+    TFTBuffer.drawString(ActivePeer->Name, 120,15);
+    TFTBuffer.unloadFont(); 
   }
-  else ShowMessage("no PDC");*/
+  TSScreenRefresh = millis(); 
 }
-void ShowPairingScreen() {
+void ShowPairing() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;             
     OldMode = Mode;
@@ -867,10 +901,10 @@ void ShowSettings() {
     
     TFTBuffer.drawString("Settings", 120, 200); 
 
-    DrawButton(2);
-    DrawButton(3);
-    DrawButton(4);
+    DrawButton(5);
     DrawButton(6);
+    DrawButton(7);
+    DrawButton(11);
 
     TSScreenRefresh = millis();
   }
@@ -1154,9 +1188,15 @@ struct_Sensor *FindPrevSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type)
     int Id   = Sens->Id;
     if (Type == SENS_TYPE_EQUAL) Type = Sens->Type;
 
-    for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+    int SNr=Id;
+    for (int i=0; i<MAX_PERIPHERALS; i++) {
+      SNr--; if (SNr == -1) SNr = MAX_PERIPHERALS-1;
       switch (Type) {
         case SENS_TYPE_SENS:  
+          Serial.print("ID orig: "); Serial.print(Id);
+          Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
+          Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
+          
           if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id < Id)) return &Peer->S[SNr];
           if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id < Id)) return &Peer->S[SNr];
           break;
@@ -1167,6 +1207,18 @@ struct_Sensor *FindPrevSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type)
     }
   }
   return Sens;
+}
+struct_Peer *FindPeerByName(String Name) {
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    if (P[PNr].Name == Name.c_str()) return &P[PNr];
+  }
+  return NULL;
+}
+struct_Peer *FindEmptyPeer() {
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    if (P[PNr].Type == 0) return &P[PNr];
+  }
+  return NULL;
 }
 struct_Peer *FindFirstPeer(int Type) {
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
