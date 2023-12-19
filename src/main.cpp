@@ -172,6 +172,8 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     TSMsgRcv = millis();
 
     if (Peer) {
+      Peer->TSLastSeen = millis();
+
       if (isBat(Peer)) TSMsgBat = TSMsgRcv;
       if (isPDC(Peer)) TSMsgPDC = TSMsgRcv;
       
@@ -279,16 +281,9 @@ void setup() {
 
   Serial.println("InitModule...");
   InitModule();
-  Debug = true;
-  //ClearPeers();
-  Serial.println("GetPeers...");
   GetPeers();
-  Serial.println("ReportPeers...");
-  //ReportPeers();
-  Serial.println("RegisterPeers...");
   RegisterPeers();
-  Serial.println("RegisterPeers fertig...");
-
+  
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
   
   Mode = 1;
@@ -977,6 +972,7 @@ void ShowPeers() {
 }
 void ShowMenu() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
     TSScreenRefresh = millis();
   }
