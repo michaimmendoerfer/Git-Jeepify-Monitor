@@ -642,7 +642,7 @@ void ReportPeers() {
 }
 void RegisterPeers() {
   esp_now_peer_info_t peerInfo;
-  peerInfo.channel = 0;
+  peerInfo.channel = 1;
   peerInfo.encrypt = false;
   memset(&peerInfo, 0, sizeof(peerInfo));
 
