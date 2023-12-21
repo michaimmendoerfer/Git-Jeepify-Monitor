@@ -229,7 +229,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
             }   
 
             esp_now_peer_info_t peerInfo;
-            peerInfo.channel = 0;
+            peerInfo.channel = 1;
             peerInfo.encrypt = false;
             memset(&peerInfo, 0, sizeof(peerInfo));
 
