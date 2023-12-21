@@ -77,6 +77,7 @@ struct_Peer   *FindEmptyPeer();
 struct_Peer   *FindFirstPeer(int Type=MODULE_ALL);
 struct_Peer   *FindNextPeer (struct_Peer *Peer, int Type=MODULE_ALL);
 struct_Peer   *FindPrevPeer (struct_Peer *Peer, int Type=MODULE_ALL);
+void SelectPeer();
 
 int    TouchQuarter(void);
 int    TouchRead();
@@ -87,7 +88,7 @@ unsigned int rainbow(byte value);
 
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
-struct_Button Button[12] = {
+struct_Button Button[13] = {
   { 25, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Volt",      false},   // 0
   { 95, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Amp",       false},   // 1
   {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON",      false},   // 2
@@ -100,15 +101,13 @@ struct_Button Button[12] = {
   {125,  75, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Eichen",    false},   // 8
   { 45, 125, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "VoltCalib", false},   // 9
   {125, 125, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Sleep",     false},   // 10
-  {125, 125, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Debug",     false}    // 11
-  
-
-
+  {125, 125, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Debug",     false},   // 11
+  {125,  75, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "JSON",      false}    // 12
 };
 
 Preferences preferences;
 
-struct_Peer   *ActivePeer, *ActivePDC, *ActiveBat;
+struct_Peer   *ActivePeer, *ActivePDC, *ActiveBat, *ActiveSelection;
 struct_Sensor *ActiveSens, *ActiveSwitch;
 
 int PeerCount    =  0;
@@ -149,7 +148,7 @@ bool MsgVoltAktiv = false;
 bool MsgEichAktiv = false;
 bool MsgPairAktiv = false;
 
-StaticJsonDocument<300> doc;
+StaticJsonDocument<500> doc;
 String jsondata;
 
 TFT_eSPI TFT               = TFT_eSPI();
@@ -173,7 +172,8 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 
     if (Peer) {
       Peer->TSLastSeen = millis();
-
+      Serial.print("bekannter Node: "); Serial.print(Peer->Name); Serial.print(" - "); Serial.println(Peer->TSLastSeen);
+      
       if (isBat(Peer)) TSMsgBat = TSMsgRcv;
       if (isPDC(Peer)) TSMsgPDC = TSMsgRcv;
       
@@ -280,6 +280,10 @@ void setup() {
   esp_now_register_recv_cb(OnDataRecv);    
 
   Serial.println("InitModule...");
+
+    //Workaround
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) P[PNr].Id = PNr;
+
   InitModule();
   GetPeers();
   RegisterPeers();
@@ -321,9 +325,9 @@ void loop() {
                   if (ActiveSwitch) Mode = S_SWITCH1;
                   break;
                 case 2: 
-                  if (isPDC4(ActivePeer) or isPDC8(ActivePeer)) {
-                    Mode = S_SWITCH4;
-                  }
+                  if (!ActiveSelection) ActiveSelection = FindFirstPeer();
+                  if (!ActiveSelection) { ShowMessage("No Peers"); break; }
+                  else Mode = S_PEER_SEL;
                   break;
                 case 3: Mode = S_SETTING;  break;
               } 
@@ -359,7 +363,7 @@ void loop() {
           switch (Touch.Gesture) {
             case CLICK:       ToggleSwitch(ActivePeer, ActiveSwitch);  break;
             case SWIPE_LEFT:  ActiveSwitch = FindNextSensor(ActivePeer, ActiveSwitch); ScreenChanged = true; break;
-            case SWIPE_RIGHT: ActiveSwitch = FindNextSensor(ActivePeer, ActiveSwitch); ScreenChanged = true; break;
+            case SWIPE_RIGHT: ActiveSwitch = FindPrevSensor(ActivePeer, ActiveSwitch); ScreenChanged = true; break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
@@ -376,6 +380,9 @@ void loop() {
                               else if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
                               else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
                               else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
+                              else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
+                              
+
                               break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
@@ -396,7 +403,20 @@ void loop() {
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;
-        case S_PEERS   : 
+        case S_PEER_SEL   : 
+          switch (Touch.Gesture) {
+            case CLICK:       
+              ActivePeer = ActiveSelection; 
+              if (isBat(ActivePeer)) ActiveBat = ActivePeer;
+              if (isPDC(ActivePeer)) ActivePDC = ActivePeer;
+              ActiveSens = NULL;
+              Mode = S_MENU; 
+              break;
+            case SWIPE_UP:    ActiveSelection = FindPrevPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
+            case SWIPE_DOWN:  ActiveSelection = FindNextPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
+          }
+          break;
+        case S_PEERS: 
           switch (Touch.Gesture) {
             case CLICK:       Mode = S_MENU; break;
             case SWIPE_LEFT:  Mode = S_MENU; break;
@@ -404,7 +424,8 @@ void loop() {
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
-          break;
+          break;    
+
         case S_JSON    :
           switch (Touch.Gesture) {
             case CLICK:       Mode = S_MENU; break;
@@ -437,6 +458,7 @@ void ScreenUpdate() {
       case S_SETTING:   ShowSettings(); break;
       case S_PEER:      ShowPeer();     break;
       case S_PEERS:     ShowPeers();    break;
+      case S_PEER_SEL:  SelectPeer(); break;
       case S_CAL_VOL:   EichenVolt();   break;  
       case S_MENU:      ShowMenu();     break;        
     }
@@ -539,7 +561,8 @@ void GetPeers() {
     Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
     if (preferences.getInt(Buf) > 0) {
       PeerCount++;
-      
+      P[Pi].Id = Pi;
+
       // P.Type
       P[Pi].Type = preferences.getInt(Buf);
       if (ActivePeer == NULL) ActivePeer = &P[Pi];
@@ -863,22 +886,25 @@ void ShowJSON() {
     TFTBuffer.setTextDatum(TC_DATUM);
     
     TFTBuffer.drawString("Debug JSON", 120, 200); 
-  
-    int sLength = jsondata.length();
-
-    if (sLength) {
-      int len = 20;
-      int Abstand = 20;
+    
+    DeserializationError error = deserializeJson(doc, jsondata);
+    if (doc["Node"] != NODE_NAME) { 
       int sLength = jsondata.length();
 
-      TFTBuffer.setTextDatum(MC_DATUM);
-      TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
-    
-      for (int i=0 ; i<8 ; i++) {
-        if ((i+1)*len < sLength)  TFTBuffer.drawString(jsondata.substring(i*len, (i+1)*len), 120,50+i*Abstand); 
-        else if (i*len < sLength) TFTBuffer.drawString(jsondata.substring(i*len, sLength), 120,50+i*Abstand); 
+      if (sLength) {
+        int len = 20;
+        int Abstand = 20;
+        int sLength = jsondata.length();
+
+        TFTBuffer.setTextDatum(MC_DATUM);
+        TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
+      
+        for (int i=0 ; i<8 ; i++) {
+          if ((i+1)*len < sLength)  TFTBuffer.drawString(jsondata.substring(i*len, (i+1)*len), 120,50+i*Abstand); 
+          else if (i*len < sLength) TFTBuffer.drawString(jsondata.substring(i*len, sLength), 120,50+i*Abstand); 
+        }
+        jsondata = "";
       }
-      jsondata = "";
     }
     TSScreenRefresh = millis();
   }
@@ -900,6 +926,7 @@ void ShowSettings() {
     DrawButton(6);
     DrawButton(7);
     DrawButton(11);
+    DrawButton(12);
 
     TSScreenRefresh = millis();
   }
@@ -1165,9 +1192,15 @@ struct_Sensor *FindNextSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type)
     int Id   = Sens->Id;
     if (Type == SENS_TYPE_EQUAL) Type = Sens->Type;
 
-    for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+    int SNr = Id;
+    for (int i=0; i<MAX_PERIPHERALS; i++) {
+      SNr++; if (SNr == MAX_PERIPHERALS) SNr = 0;
       switch (Type) {
         case SENS_TYPE_SENS:  
+          /*Serial.print("ID orig: "); Serial.print(Id);
+          Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
+          Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
+          */
           if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id > Id)) return &Peer->S[SNr];
           if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id > Id)) return &Peer->S[SNr];
           break;
@@ -1183,16 +1216,15 @@ struct_Sensor *FindPrevSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type)
   if (Sens) {
     int Id   = Sens->Id;
     if (Type == SENS_TYPE_EQUAL) Type = Sens->Type;
-
     int SNr=Id;
     for (int i=0; i<MAX_PERIPHERALS; i++) {
       SNr--; if (SNr == -1) SNr = MAX_PERIPHERALS-1;
       switch (Type) {
         case SENS_TYPE_SENS:  
-          Serial.print("ID orig: "); Serial.print(Id);
+          /*Serial.print("ID orig: "); Serial.print(Id);
           Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
           Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
-          
+          */
           if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id < Id)) return &Peer->S[SNr];
           if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id < Id)) return &Peer->S[SNr];
           break;
@@ -1204,10 +1236,29 @@ struct_Sensor *FindPrevSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type)
   }
   return Sens;
 }
-struct_Peer *FindPeerByName(String Name) {
-  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
-    if (P[PNr].Name == Name.c_str()) return &P[PNr];
+void SelectPeer() {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
+    TFTBuffer.fillSmoothRoundRect(50, 50, 140, 140, 10, TFT_LIGHTGREY, TFT_BLACK);
+    TFTBuffer.loadFont(AA_FONT_SMALL);
+
+    TFTBuffer.setTextColor(TFT_RUBICON, TFT_LIGHTGREY);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.drawString("-", 120,  80);
+    TFTBuffer.drawString("+", 120, 160);
+    TFTBuffer.drawString(ActiveSelection->Name, 120, 120);
+    
+    TSScreenRefresh = millis();
   }
+}
+struct_Peer *FindPeerByName(String Name) {
+  //Serial.print("gesuchter Name: "); Serial.println(Name.c_str());
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    //Serial.print(P[PNr].Name); Serial.print(" =? "); Serial.println(Name.c_str());
+    if ((String)P[PNr].Name == Name) return &P[PNr];
+  }
+  //Serial.println("durchgelaufen");
   return NULL;
 }
 struct_Peer *FindEmptyPeer() {
@@ -1226,9 +1277,13 @@ struct_Peer *FindFirstPeer(int Type) {
 struct_Peer *FindNextPeer(struct_Peer *Peer, int Type) {
   if (Peer) {
     int Id   = Peer->Id;
-    int Type = Peer->Type;
-
-    for (int PNr=0; PNr<MAX_PERIPHERALS; PNr++) {
+  
+    for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+      Serial.print("ID orig: "); Serial.print(Id);
+      Serial.print("untersucht: "); Serial.println(P[PNr].Name);
+      Serial.print(", Peer->Id"); Serial.print(PNr); Serial.print("="); Serial.print(P[PNr].Id);
+      Serial.print(", Peer->Type"); Serial.print(PNr); Serial.print("="); Serial.println(P[PNr].Type);
+      
       if ((P[PNr].Type == Type)                   and (P[PNr].Id > Id)) return &P[PNr];
       if ((P[PNr].Type) and (Type == MODULE_ALL)  and (P[PNr].Id > Id)) return &P[PNr];
     }
@@ -1238,8 +1293,7 @@ struct_Peer *FindNextPeer(struct_Peer *Peer, int Type) {
 struct_Peer *FindPrevPeer(struct_Peer *Peer, int Type) {
   if (Peer) {
     int Id   = Peer->Id;
-    int Type = Peer->Type;
-
+  
     for (int PNr=0; PNr<MAX_PERIPHERALS; PNr++) {
       if ((P[PNr].Type == Type)                  and (P[PNr].Id < Id)) return &P[PNr];
       if ((P[PNr].Type) and (Type == MODULE_ALL) and (P[PNr].Id < Id)) return &P[PNr];
@@ -1313,6 +1367,7 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
       
     noInterrupts(); 
       float value = ActiveSens->Value; 
+      if (value < SCHWELLE) value = 0;
     interrupts();
 
     char buf[20];
