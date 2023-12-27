@@ -28,7 +28,7 @@ void   ClearPeers();
 void   ClearInit();
 
 void   SendPing();
-void   ToggleSwitch(struct_Peer *Peer, struct_Sensor *Sens);
+void   ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph);
 void   SendCommand(struct_Peer *Peer, String Cmd);
 
 void   SetSleepMode(bool Mode);
@@ -57,21 +57,21 @@ void   ShowPairing();
 
 int    RingMeter(float vmin, float vmax, const char *units, byte scheme);
 
-bool   SensorChanged(struct_Peer *Peer, int Start, int Stop=99);
+bool   PeriphChanged(struct_Peer *Peer, int Start, int Stop=99);
 bool   isPDC (struct_Peer *Peer);
 bool   isPDC1(struct_Peer *Peer);
 bool   isPDC2(struct_Peer *Peer);
 bool   isPDC4(struct_Peer *Peer);
 bool   isPDC8(struct_Peer *Peer);
 bool   isBat(struct_Peer *Peer);
-bool   isSwitch(struct_Sensor *Sens);
-bool   isSensor(struct_Sensor *Sens);
-bool   isSensorAmp (struct_Sensor *Sens);
-bool   isSensorVolt(struct_Sensor *Sens);
-struct_Sensor *FindSensorByNumber(struct_Peer *Peer, int Id);
-struct_Sensor *FindFirstSensor(struct_Peer *Peer, int Type);
-struct_Sensor *FindNextSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type=SENS_TYPE_EQUAL);
-struct_Sensor *FindPrevSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type=SENS_TYPE_EQUAL);
+bool   isSwitch(struct_Periph *Periph);
+bool   isSensor(struct_Periph *Periph);
+bool   isSensorAmp (struct_Periph *Periph);
+bool   isSensorVolt(struct_Periph *Periph);
+struct_Periph *FindPeriphByNumber(struct_Peer *Peer, int Id);
+struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual=false);
+struct_Periph *FindNextPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
+struct_Periph *FindPrevPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
 struct_Peer   *FindPeerByName(String Name);
 struct_Peer   *FindEmptyPeer();
 struct_Peer   *FindFirstPeer(int Type=MODULE_ALL);
@@ -108,7 +108,7 @@ struct_Button Button[13] = {
 Preferences preferences;
 
 struct_Peer   *ActivePeer, *ActivePDC, *ActiveBat, *ActiveSelection;
-struct_Sensor *ActiveSens, *ActiveSwitch;
+struct_Periph *ActiveSens, *ActiveSwitch;
 
 int PeerCount    =  0;
 int Mode         =  S_MENU;
@@ -160,6 +160,7 @@ CST816D TouchHW(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   char* buff = (char*) incomingData;   
   String BufS;
+  bool PairingSuccess = false;
 
   jsondata = "";  jsondata = String(buff);                 
   Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(jsondata);    
@@ -190,8 +191,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
         if (doc.containsKey("Debug")) Peer->Debug = (bool) doc["Debug"];
       } 
     } 
-    else if (ReadyToPair) {
-      bool PairingSuccess = false;
+    else {
       char Buf[10] = {};
       char BufB[5] = {};
 
@@ -199,21 +199,15 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
         if (esp_now_is_peer_exist(mac)) { 
           PrintMAC(mac); Serial.println(" already exists...");
           PairingSuccess = true;
-          
-          jsondata = "";  doc.clear();
-          doc["Node"]    = NODE_NAME;   
-          doc["Pairing"] = "you are paired";
-
-          serializeJson(doc, jsondata);  
-          esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
-          Serial.print("Sending you are paired"); 
-          Serial.println(jsondata);
         }
-        else { // neuer Peer
+        else if (ReadyToPair) { // neuen Peer registrieren
           Peer = FindEmptyPeer();
 
           if (Peer) {
+            Serial.print("gefundener Slot Id="); Serial.println(Peer->Id);
             for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
+            PrintMAC(Peer->BroadcastAddress);
+            Serial.println();
             strcpy(Peer->Name, doc["Node"]);
             Peer->Type = doc["Type"];
             Peer->TSLastSeen = millis();
@@ -227,38 +221,30 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
                 Peer->S[Si].Id = Si;
               }
             }   
-
-            esp_now_peer_info_t peerInfo;
-            peerInfo.channel = 1;
-            peerInfo.encrypt = false;
-            memset(&peerInfo, 0, sizeof(peerInfo));
-
-            for (int ii = 0; ii < 6; ++ii ) peerInfo.peer_addr[ii] = (uint8_t) mac[ii];
-            if (esp_now_add_peer(&peerInfo) != ESP_OK) { 
-              Serial.println("Failed to add peer");
-            }
-            else { 
-              Serial.println(Peer->Name); 
-              PrintMAC(mac); Serial.println(" peer added...");
-              
-              PairingSuccess = true; 
-              jsondata = "";  doc.clear();
-              
-              doc["Node"]    = NODE_NAME;   
-              doc["Pairing"] = "you are paired";
-              doc["Type"]    = MONITOR_ROUND;
-
-              serializeJson(doc, jsondata);  
-              esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
-              Serial.print("Sending you are paired"); 
-              Serial.println(jsondata);
-              ReadyToPair = false; TSPair = 0;
-            }
-          }
-          if (!PairingSuccess) { PrintMAC(mac); Serial.println(" adding failed..."); } 
-          else  {
-            Serial.println("Saving Peers...");
             SavePeers();
+            RegisterPeers();
+           
+            jsondata = "";  doc.clear();
+              
+            doc["Node"]     = NODE_NAME;   
+            doc["Peer"]     = Peer->Name;
+            doc["Pairing"]  = "you are paired";
+            doc["Type"]     = MONITOR_ROUND;
+            doc["B0"]       = Peer->BroadcastAddress[0];
+            doc["B1"]       = Peer->BroadcastAddress[1];
+            doc["B2"]       = Peer->BroadcastAddress[2];
+            doc["B3"]       = Peer->BroadcastAddress[3];
+            doc["B4"]       = Peer->BroadcastAddress[4];
+            doc["B5"]       = Peer->BroadcastAddress[5];
+
+            serializeJson(doc, jsondata);  
+            Serial.println("prepared... sending you ae apired");
+            Serial.println(jsondata);
+            esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 200); 
+            Serial.print("Sent you are paired"); 
+            Serial.println(jsondata);
+            
+            ReadyToPair = false; TSPair = 0;
           }
         }
       }
@@ -313,15 +299,16 @@ void loop() {
             case CLICK:       
               switch (TouchQuarter()) {
                 case 0: 
-                  if (!ActiveBat)  ActiveBat = FindFirstPeer(BATTERY_SENSOR);
-                  if (!ActiveBat) {ShowMessage("No Sensor"); break; }
-                  if (!ActiveSens) ActiveSens = FindFirstSensor(ActiveBat, SENS_TYPE_SENS);
-                  if ( ActiveSens) Mode = S_SENSOR1;
+                  Serial.println("vor ActiveBat Suchr");
+                  if (!ActiveSens) ActiveSens = FindFirstPeriph(ActiveBat, SENS_TYPE_SENS, false);
+                  Serial.print("ActiveSens="); Serial.println(ActiveSens->Name);
+                  
+                  if (!ActiveSens) ShowMessage("No Sensor"); 
+                  else  Mode = S_SENSOR1;
+                  
                   break;
                 case 1: 
-                  if (!ActivePDC) ActivePDC = FindFirstPeer(PDC);
-                  if (!ActivePDC) { ShowMessage("No PDC"); break; }
-                  if (!ActiveSwitch) ActiveSwitch = FindFirstSensor(ActivePDC, SENS_TYPE_SWITCH);
+                  if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePDC, SENS_TYPE_SWITCH);
                   if (ActiveSwitch) Mode = S_SWITCH1;
                   break;
                 case 2: 
@@ -344,14 +331,17 @@ void loop() {
           switch (Touch.Gesture) {
             case CLICK:       
               Serial.print("vorher: "); Serial.println(ActiveSens->Name);
-              ActiveSens = FindNextSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+              ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
               ScreenChanged = true; 
               Serial.print("nachher: "); Serial.println(ActiveSens->Name);
               break;
-            case SWIPE_LEFT:  ActiveSens = FindNextSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); ScreenChanged = true; break;
+            case SWIPE_LEFT:  
+              ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+              ScreenChanged = true; 
+              break;
             case SWIPE_RIGHT: 
               Serial.print("vorher: "); Serial.println(ActiveSens->Name);
-              ActiveSens = FindPrevSensor(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+              ActiveSens = FindPrevPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
               ScreenChanged = true; 
               Serial.print("nachher: "); Serial.println(ActiveSens->Name);
               break;
@@ -362,8 +352,8 @@ void loop() {
         case S_SWITCH1: 
           switch (Touch.Gesture) {
             case CLICK:       ToggleSwitch(ActivePeer, ActiveSwitch);  break;
-            case SWIPE_LEFT:  ActiveSwitch = FindNextSensor(ActivePeer, ActiveSwitch); ScreenChanged = true; break;
-            case SWIPE_RIGHT: ActiveSwitch = FindPrevSensor(ActivePeer, ActiveSwitch); ScreenChanged = true; break;
+            case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
+            case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
@@ -376,17 +366,18 @@ void loop() {
           break;
         case S_SETTING:
           switch (Touch.Gesture) {
-            case CLICK:            if (ButtonHit( 5)) ESP.restart(); 
+            case CLICK:            if (ButtonHit( 5)) { ESP.restart(); }
                               else if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
                               else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
                               else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
                               else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
-                              
+                              Serial.println("Ende Setting Click");
 
                               break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
+          } 
+          break;
         case S_PEER    : 
           switch (Touch.Gesture) {
             case CLICK:            if (ButtonHit( 5)) SendCommand(ActivePeer, "Restart");
@@ -410,6 +401,7 @@ void loop() {
               if (isBat(ActivePeer)) ActiveBat = ActivePeer;
               if (isPDC(ActivePeer)) ActivePDC = ActivePeer;
               ActiveSens = NULL;
+              ActiveSwitch = NULL;
               Mode = S_MENU; 
               break;
             case SWIPE_UP:    ActiveSelection = FindPrevPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
@@ -425,7 +417,6 @@ void loop() {
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
           break;    
-
         case S_JSON    :
           switch (Touch.Gesture) {
             case CLICK:       Mode = S_MENU; break;
@@ -437,8 +428,9 @@ void loop() {
           break;
         case S_PAIRING: 
           switch (Touch.Gesture) {
-            case CLICK: TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
+            case CLICK: Serial.println("Anfang Pairing Click"); TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
           }
+          break;
       }
     }
   TSTouch = millis();
@@ -446,6 +438,7 @@ void loop() {
   }
 }
 void ScreenUpdate() {
+  //Serial.println("Beginn ScreenUpdate");
   if (!TSMsgStart) {
     switch (Mode) {
       case S_PAIRING:   ShowPairing();  break;
@@ -463,6 +456,7 @@ void ScreenUpdate() {
       case S_MENU:      ShowMenu();     break;        
     }
   }
+  //Serial.println("vor Push");
   PushTFT();
 }
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { 
@@ -596,6 +590,10 @@ void GetPeers() {
         
         sprintf(Buf, "SName%d=%s, SType%d=%d, SId%d=%d", Si, BufS, Si, P[Pi].S[Si].Type, Si, P[Pi].S[Si].Id);
         Serial.println(Buf);
+
+        if (isSensor(&P[Pi].S[Si]) and (ActiveSens == NULL))   ActiveSens   = &P[Pi].S[Si];
+        if (isSwitch(&P[Pi].S[Si]) and (ActiveSwitch == NULL)) ActiveSwitch = &P[Pi].S[Si];
+
       }
       P[Pi].TSLastSeen = millis();
       
@@ -740,7 +738,7 @@ void ShowSensor1() {
 void ShowSensor4(int Start) {
   FirstDisplayedSensor = Start;
   
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActivePeer, Start,Start+3))) {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (PeriphChanged(ActivePeer, Start,Start+3))) {
     ScreenChanged = true;  
     OldMode = Mode;           
 
@@ -799,7 +797,8 @@ void ShowMessage(char *Msg) {
     TFTBuffer.drawString(Msg, 120, 120);
     
     PushTFT();
-    delay(1000);
+    delay(500);
+    ScreenChanged = true;
 }
 void ShowSwitch1() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (ActiveSwitch->Changed)) {
@@ -834,7 +833,7 @@ void ShowSwitch1() {
 void ShowSwitch4(int Start) { 
   FirstDisplayedSwitch = Start;
 
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (SensorChanged(ActivePeer, Start,Start+3))) {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (PeriphChanged(ActivePeer, Start,Start+3))) {
     ScreenChanged = true;     
     OldMode = Mode;        
 
@@ -860,6 +859,7 @@ void ShowSwitch4(int Start) {
   TSScreenRefresh = millis(); 
 }
 void ShowPairing() {
+  Serial.println("Beginn ShowPairing");
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;             
     OldMode = Mode;
@@ -875,7 +875,7 @@ void ShowPairing() {
   }
 }
 void ShowJSON() {
-  if (((TSScreenRefresh - millis() > SCREEN_INTERVAL) and (jsondata != "") or (Mode != OldMode))) {
+  if ((jsondata != "") or (Mode != OldMode)) {
     ScreenChanged = true;
     OldMode = Mode;
 
@@ -1005,8 +1005,9 @@ void ShowMenu() {
   }
 }
 void PushTFT() {
+  //Serial.println("Beginn push");
   SetMsgIndicator();
-  
+  //Serial.println("nach Msgindicator");
   if (ScreenChanged) {
     /*Serial.print("ScreenUpdate: ");
     Serial.print(UpdateCount);
@@ -1095,13 +1096,13 @@ void SetDebugMode(bool Mode) {
     if (preferences.getBool("Debug", false) != Debug) preferences.putBool("Debug", Debug);
   preferences.end();
 }
-void ToggleSwitch(struct_Peer *Peer, struct_Sensor *Sens) {
+void ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph) {
   jsondata = "";  //clearing String after data is being sent
   doc.clear();
   
   doc["from"] = NODE_NAME;   
   doc["Order"] = "ToggleSwitch";
-  doc["Value"] = Sens->Name;
+  doc["Value"] = Periph->Name;
   
   serializeJson(doc, jsondata);  
   
@@ -1125,7 +1126,9 @@ void SendCommand(struct_Peer *Peer, String Cmd) {
   jsondata = "";
 }
 bool isPDC(struct_Peer *Peer) {
-  if (Peer) return ((Peer->Type == SWITCH_1_WAY) or (Peer->Type == SWITCH_2_WAY) or (Peer->Type == SWITCH_4_WAY) or (Peer->Type == SWITCH_8_WAY));   
+  if (Peer) return ((Peer->Type == SWITCH_1_WAY) or (Peer->Type == SWITCH_2_WAY) or 
+                    (Peer->Type == SWITCH_4_WAY) or (Peer->Type == SWITCH_8_WAY) or
+                    (Peer->Type == PDC_SENSOR_MIX));   
   return false;   
 }
 bool isPDC1(struct_Peer *Peer) {
@@ -1145,96 +1148,118 @@ bool isPDC8(struct_Peer *Peer) {
   return false;   
 }
 bool isBat(struct_Peer *Peer) {
-  if (Peer) return(Peer->Type == BATTERY_SENSOR);
+  if (Peer) return ((Peer->Type == BATTERY_SENSOR) or (Peer->Type == PDC_SENSOR_MIX));
   return false;
 }
-bool isSwitch(struct_Sensor *Sens) {
-  if (Sens) return (Sens->Type == SENS_TYPE_SWITCH); 
+bool isSwitch(struct_Periph *Periph) {
+  if (Periph) return (Periph->Type == SENS_TYPE_SWITCH); 
   return false;     
 }
-bool isSensor(struct_Sensor *Sens) {
-  if (Sens) return((Sens->Type == SENS_TYPE_AMP) or (Sens->Type == SENS_TYPE_VOLT));
+bool isSensor(struct_Periph *Periph) {
+  if (Periph) return((Periph->Type == SENS_TYPE_AMP) or (Periph->Type == SENS_TYPE_VOLT));
   return false;
 }
-bool isSensorVolt(struct_Sensor *Sens) {
-  if (Sens) return (Sens->Type == SENS_TYPE_VOLT);
+bool isSensorVolt(struct_Periph *Periph) {
+  if (Periph) return (Periph->Type == SENS_TYPE_VOLT);
   return false;
 }
-bool isSensorAmp(struct_Sensor *Sens) {
-  if (Sens) return (Sens->Type == SENS_TYPE_AMP);
+bool isSensorAmp(struct_Periph *Periph) {
+  if (Periph) return (Periph->Type == SENS_TYPE_AMP);
   return false;
 }
-bool SensorChanged(struct_Peer *Peer, int Start, int Stop) {
+bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
   int ret = false;
   if (Stop == 99) Stop = Start;
   for (int Si=Start; Si++; Si<Stop+1) if (Peer->S[Si].Changed) ret = true;
   return ret;
 }
-struct_Sensor *FindSensorByNumber(struct_Peer *Peer, int Id) {
+struct_Periph *FindSensorByNumber(struct_Peer *Peer, int Id) {
   for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
     if (Peer->S[SNr].Id == Id) return &Peer->S[SNr];
   }
   return NULL;
 }
-struct_Sensor *FindFirstSensor(struct_Peer *Peer, int Type){
-  for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
-    switch (Type) {
-      case SENS_TYPE_AMP:    if (isSensorAmp(&Peer->S[SNr]))  return &Peer->S[SNr]; break;
-      case SENS_TYPE_VOLT:   if (isSensorVolt(&Peer->S[SNr])) return &Peer->S[SNr]; break;
-      case SENS_TYPE_SENS:   if (isSensor(&Peer->S[SNr]))     return &Peer->S[SNr]; break;
-      case SENS_TYPE_SWITCH: if (isSwitch(&Peer->S[SNr]))     return &Peer->S[SNr]; break;
+struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual){
+  if (!Peer) Peer = FindFirstPeer();
+   if (Peer) {
+    for (int Pi=0; Pi<MAX_PEERS; Pi++) {
+      for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+        switch (Type) {
+          case SENS_TYPE_AMP:    if (isSensorAmp(&Peer->S[SNr]))  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          case SENS_TYPE_VOLT:   if (isSensorVolt(&Peer->S[SNr])) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          case SENS_TYPE_SENS:   if (isSensor(&Peer->S[SNr]))     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          case SENS_TYPE_SWITCH: if (isSwitch(&Peer->S[SNr]))     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+        }
+      }
     }
+    if (OnlyActual) return NULL;
+    Peer = FindNextPeer(Peer);
   }
   return NULL;
 }
-struct_Sensor *FindNextSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type){
-  if (Sens) {
-    int Id   = Sens->Id;
-    if (Type == SENS_TYPE_EQUAL) Type = Sens->Type;
+struct_Periph *FindNextPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type, bool OnlyActual){
+  if ((Periph) and (Peer)) {
+    if (Type == SENS_TYPE_EQUAL) Type = Periph->Type;
 
-    int SNr = Id;
-    for (int i=0; i<MAX_PERIPHERALS; i++) {
-      SNr++; if (SNr == MAX_PERIPHERALS) SNr = 0;
-      switch (Type) {
-        case SENS_TYPE_SENS:  
-          /*Serial.print("ID orig: "); Serial.print(Id);
-          Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
-          Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
-          */
-          if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id > Id)) return &Peer->S[SNr];
-          if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id > Id)) return &Peer->S[SNr];
-          break;
-        default:
-          if ((Peer->S[SNr].Type == Type) and (Peer->S[SNr].Id > Id)) return &Peer->S[SNr]; 
-          break;
+    int SNr = Periph->Id;
+    int Id  = Periph->Id;
+
+    for (int Pi=0; Pi<MAX_PEERS; Pi++) {
+      for (int i=0; i<MAX_PERIPHERALS; i++) {
+        SNr++; if (SNr == MAX_PERIPHERALS) SNr = 0;
+        char Buf[100];
+        sprintf(Buf, "Vergleiche %s, %s (Id=%d) mit %s, %s (Id(%d)...", Peer->Name, Peer->S[SNr].Name, Peer->S[SNr].Id, ActivePeer->Name, ActivePeer->S[Id].Name, ActivePeer->S[Id].Id);
+        switch (Type) {
+          case SENS_TYPE_SENS:  
+            /*Serial.print("ID orig: "); Serial.print(Id);
+            Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
+            Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
+            */
+            if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id > Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id > Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+          default:
+            if ((Peer->S[SNr].Type == Type) and (Peer->S[SNr].Id > Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+        }
       }
+      if (OnlyActual) return NULL;
+      Peer = FindNextPeer(Peer);
+      Id = -1; SNr = -1;
     }
   }
-  return Sens;
+  return Periph;
 }
-struct_Sensor *FindPrevSensor (struct_Peer *Peer, struct_Sensor *Sens, int Type){
-  if (Sens) {
-    int Id   = Sens->Id;
-    if (Type == SENS_TYPE_EQUAL) Type = Sens->Type;
-    int SNr=Id;
-    for (int i=0; i<MAX_PERIPHERALS; i++) {
-      SNr--; if (SNr == -1) SNr = MAX_PERIPHERALS-1;
-      switch (Type) {
-        case SENS_TYPE_SENS:  
-          /*Serial.print("ID orig: "); Serial.print(Id);
-          Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
-          Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
-          */
-          if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id < Id)) return &Peer->S[SNr];
-          if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id < Id)) return &Peer->S[SNr];
-          break;
-        default:
-          if ((Peer->S[SNr].Type == Type) and (Peer->S[SNr].Id < Id)) return &Peer->S[SNr]; 
-          break;
+struct_Periph *FindPrevPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type, bool OnlyActual){
+  if ((Periph) and (Peer)) {
+    if (Type == SENS_TYPE_EQUAL) Type = Periph->Type;
+    
+    int SNr = Periph->Id;
+    int Id  = Periph->Id;
+
+    for (int Pi=0; Pi<MAX_PEERS; Pi++) {
+      for (int i=0; i<MAX_PERIPHERALS; i++) {
+        SNr--; if (SNr == -1) SNr = MAX_PERIPHERALS-1;
+        switch (Type) {
+          case SENS_TYPE_SENS:  
+            /*Serial.print("ID orig: "); Serial.print(Id);
+            Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
+            Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
+            */
+            if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id < Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id < Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+          default:
+            if ((Peer->S[SNr].Type == Type) and (Peer->S[SNr].Id < Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+        }
       }
+      if (OnlyActual) return NULL;
+      Peer = FindPrevPeer(Peer);
+      Id = MAX_PERIPHERALS; SNr = MAX_PERIPHERALS;
     }
   }
-  return Sens;
+  return Periph;
 }
 void SelectPeer() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -1276,11 +1301,14 @@ struct_Peer *FindFirstPeer(int Type) {
 }
 struct_Peer *FindNextPeer(struct_Peer *Peer, int Type) {
   if (Peer) {
-    int Id   = Peer->Id;
-  
-    for (int PNr=0; PNr<MAX_PEERS; PNr++) {
-      Serial.print("ID orig: "); Serial.print(Id);
-      Serial.print("untersucht: "); Serial.println(P[PNr].Name);
+    int PNr = Peer->Id;
+    int Id  = Peer->Id;
+ 
+    for (int i=0; i<MAX_PEERS; i++) {
+      PNr++; if (PNr == MAX_PEERS) { PNr = 0; Id = -1; }
+      
+      Serial.print("ID orig: "); Serial.print(Peer->Id);
+      Serial.print("untersucht: "); Serial.println((P[PNr].Name));
       Serial.print(", Peer->Id"); Serial.print(PNr); Serial.print("="); Serial.print(P[PNr].Id);
       Serial.print(", Peer->Type"); Serial.print(PNr); Serial.print("="); Serial.println(P[PNr].Type);
       
@@ -1292,9 +1320,12 @@ struct_Peer *FindNextPeer(struct_Peer *Peer, int Type) {
 }
 struct_Peer *FindPrevPeer(struct_Peer *Peer, int Type) {
   if (Peer) {
-    int Id   = Peer->Id;
-  
-    for (int PNr=0; PNr<MAX_PERIPHERALS; PNr++) {
+    int PNr = Peer->Id;
+    int Id  = Peer->Id;
+    
+    for (int i=0; i<MAX_PEERS; i++) {
+      PNr--; if (PNr == -1) { PNr = MAX_PEERS-1; Id = MAX_PEERS; }
+        
       if ((P[PNr].Type == Type)                  and (P[PNr].Id < Id)) return &P[PNr];
       if ((P[PNr].Type) and (Type == MODULE_ALL) and (P[PNr].Id < Id)) return &P[PNr];
     }
