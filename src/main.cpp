@@ -14,7 +14,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 0.74"
+#define VERSION   "V 0.94"
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
@@ -30,6 +30,7 @@ void   ClearInit();
 void   SendPing();
 void   ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph);
 void   SendCommand(struct_Peer *Peer, String Cmd);
+void   SendPairingConfirm(struct_Peer *Peer);
 
 void   SetSleepMode(bool Mode);
 void   SetDebugMode(bool Mode);
@@ -73,6 +74,7 @@ struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual=fals
 struct_Periph *FindNextPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
 struct_Periph *FindPrevPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
 struct_Peer   *FindPeerByName(String Name);
+struct_Peer   *FindPeerByMAC(const uint8_t * MAC);
 struct_Peer   *FindEmptyPeer();
 struct_Peer   *FindFirstPeer(int Type=MODULE_ALL);
 struct_Peer   *FindNextPeer (struct_Peer *Peer, int Type=MODULE_ALL);
@@ -160,6 +162,9 @@ CST816D TouchHW(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   char* buff = (char*) incomingData;   
   String BufS;
+  char Buf[10] = {};
+  char BufB[5] = {};
+
   bool PairingSuccess = false;
 
   jsondata = "";  jsondata = String(buff);                 
@@ -168,7 +173,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   DeserializationError error = deserializeJson(doc, jsondata);
 
   if (!error) {
-    struct_Peer *Peer = FindPeerByName(doc["Node"]);
+    struct_Peer *Peer = FindPeerByMAC(mac);
     TSMsgRcv = millis();
 
     if (Peer) {
@@ -178,74 +183,50 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
       if (isBat(Peer)) TSMsgBat = TSMsgRcv;
       if (isPDC(Peer)) TSMsgPDC = TSMsgRcv;
       
-      for (int i=0; i<MAX_PERIPHERALS; i++) {
-        if (doc.containsKey(Peer->S[i].Name)) {
-          float TempSensor = (float)doc[Peer->S[i].Name];
-      
-          if (TempSensor != Peer->S[i].Value) {
-            Peer->S[i].Value = TempSensor;
-            Peer->S[i].Changed = true;
+      if (doc["Pairing"] == "add me") { SendPairingConfirm(Peer); }
+      else {
+        for (int i=0; i<MAX_PERIPHERALS; i++) {
+          if (doc.containsKey(Peer->S[i].Name)) {
+            float TempSensor = (float)doc[Peer->S[i].Name];
+        
+            if (TempSensor != Peer->S[i].Value) {
+              Peer->S[i].Value = TempSensor;
+              Peer->S[i].Changed = true;
+            }
           }
-        }
-        if (doc.containsKey("Sleep")) Peer->Sleep = (bool) doc["Sleep"];
-        if (doc.containsKey("Debug")) Peer->Debug = (bool) doc["Debug"];
-      } 
+          if (doc.containsKey("Sleep")) Peer->Sleep = (bool) doc["Sleep"];
+          if (doc.containsKey("Debug")) Peer->Debug = (bool) doc["Debug"];
+        } 
+      }
     } 
     else {
-      char Buf[10] = {};
-      char BufB[5] = {};
+      if ((doc["Pairing"] == "add me") and (ReadyToPair)) { // neuen Peer registrieren
+        Peer = FindEmptyPeer();
 
-      if (doc["Pairing"] == "add me") { 
-        if (esp_now_is_peer_exist(mac)) { 
-          PrintMAC(mac); Serial.println(" already exists...");
-          PairingSuccess = true;
-        }
-        else if (ReadyToPair) { // neuen Peer registrieren
-          Peer = FindEmptyPeer();
+        if (Peer) {
+          Serial.print("gefundener Slot Id="); Serial.println(Peer->Id);
+          for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
+          PrintMAC(Peer->BroadcastAddress);
+          Serial.println();
+          strcpy(Peer->Name, doc["Node"]);
+          Peer->Type = doc["Type"];
+          Peer->TSLastSeen = millis();
+          
+          for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
+            sprintf(Buf, "T%d", Si);        // Type0
+            if (doc.containsKey(Buf)) {
+              Peer->S[Si].Type = doc[Buf];
+              sprintf(Buf, "N%d", Si);      // Name0
+              strcpy(Peer->S[Si].Name, doc[Buf]);
+              Peer->S[Si].Id = Si;
+            }
+          }   
+          SavePeers();
+          RegisterPeers();
+          
+          SendPairingConfirm(Peer);
 
-          if (Peer) {
-            Serial.print("gefundener Slot Id="); Serial.println(Peer->Id);
-            for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
-            PrintMAC(Peer->BroadcastAddress);
-            Serial.println();
-            strcpy(Peer->Name, doc["Node"]);
-            Peer->Type = doc["Type"];
-            Peer->TSLastSeen = millis();
-            
-            for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
-              sprintf(Buf, "T%d", Si);        // Type0
-              if (doc.containsKey(Buf)) {
-                Peer->S[Si].Type = doc[Buf];
-                sprintf(Buf, "N%d", Si);      // Name0
-                strcpy(Peer->S[Si].Name, doc[Buf]);
-                Peer->S[Si].Id = Si;
-              }
-            }   
-            SavePeers();
-            RegisterPeers();
-           
-            jsondata = "";  doc.clear();
-              
-            doc["Node"]     = NODE_NAME;   
-            doc["Peer"]     = Peer->Name;
-            doc["Pairing"]  = "you are paired";
-            doc["Type"]     = MONITOR_ROUND;
-            doc["B0"]       = Peer->BroadcastAddress[0];
-            doc["B1"]       = Peer->BroadcastAddress[1];
-            doc["B2"]       = Peer->BroadcastAddress[2];
-            doc["B3"]       = Peer->BroadcastAddress[3];
-            doc["B4"]       = Peer->BroadcastAddress[4];
-            doc["B5"]       = Peer->BroadcastAddress[5];
-
-            serializeJson(doc, jsondata);  
-            Serial.println("prepared... sending you ae apired");
-            Serial.println(jsondata);
-            esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 200); 
-            Serial.print("Sent you are paired"); 
-            Serial.println(jsondata);
-            
-            ReadyToPair = false; TSPair = 0;
-          }
+          ReadyToPair = false; TSPair = 0;
         }
       }
     }
@@ -255,6 +236,27 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     Serial.println(error.f_str());
     return;
   }
+}
+void SendPairingConfirm(struct_Peer *Peer) {
+  jsondata = "";  doc.clear();
+              
+  doc["Node"]     = NODE_NAME;   
+  doc["Peer"]     = Peer->Name;
+  doc["Pairing"]  = "you are paired";
+  doc["Type"]     = MONITOR_ROUND;
+  doc["B0"]       = Peer->BroadcastAddress[0];
+  doc["B1"]       = Peer->BroadcastAddress[1];
+  doc["B2"]       = Peer->BroadcastAddress[2];
+  doc["B3"]       = Peer->BroadcastAddress[3];
+  doc["B4"]       = Peer->BroadcastAddress[4];
+  doc["B5"]       = Peer->BroadcastAddress[5];
+
+  serializeJson(doc, jsondata);  
+  Serial.println("prepared... sending you are paired");
+  Serial.println(jsondata);
+  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 200); 
+  Serial.print("Sent you are paired"); 
+  Serial.println(jsondata);         
 }
 void setup() {
   Serial.begin(74880);
@@ -371,8 +373,7 @@ void loop() {
                               else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
                               else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
                               else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
-                              Serial.println("Ende Setting Click");
-
+                              
                               break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
@@ -428,7 +429,7 @@ void loop() {
           break;
         case S_PAIRING: 
           switch (Touch.Gesture) {
-            case CLICK: Serial.println("Anfang Pairing Click"); TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
+            case CLICK: TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
           }
           break;
       }
@@ -438,7 +439,6 @@ void loop() {
   }
 }
 void ScreenUpdate() {
-  //Serial.println("Beginn ScreenUpdate");
   if (!TSMsgStart) {
     switch (Mode) {
       case S_PAIRING:   ShowPairing();  break;
@@ -456,7 +456,6 @@ void ScreenUpdate() {
       case S_MENU:      ShowMenu();     break;        
     }
   }
-  //Serial.println("vor Push");
   PushTFT();
 }
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { 
@@ -859,7 +858,6 @@ void ShowSwitch4(int Start) {
   TSScreenRefresh = millis(); 
 }
 void ShowPairing() {
-  Serial.println("Beginn ShowPairing");
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;             
     OldMode = Mode;
@@ -976,11 +974,12 @@ void ShowPeers() {
         TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
         TFTBuffer.drawString(P[PNr].Name, 10, 80+PNr*Abstand);
         switch (P[PNr].Type) {
-          case 1: ZName = "1-way PDC";  break;
-          case 2: ZName = "2-way PDC";  break;
-          case 4: ZName = "4-way PDC";  break;
-          case 8: ZName = "8-way PDC";  break;
-          case 9: ZName = "Batt.-Sens."; break;
+          case SWITCH_1_WAY:   ZName = "1-way PDC";   break;
+          case SWITCH_2_WAY:   ZName = "2-way PDC";   break;
+          case SWITCH_4_WAY:   ZName = "4-way PDC";   break;
+          case SWITCH_8_WAY:   ZName = "8-way PDC";   break;
+          case PDC_SENSOR_MIX: ZName = "PDC-MIX";     break;
+          case BATTERY_SENSOR: ZName = "Batt.-Sens."; break;
         }
         TFTBuffer.drawString(ZName, 105, 80+PNr*Abstand);
         
@@ -1284,6 +1283,20 @@ struct_Peer *FindPeerByName(String Name) {
     if ((String)P[PNr].Name == Name) return &P[PNr];
   }
   //Serial.println("durchgelaufen");
+  return NULL;
+}
+struct_Peer *FindPeerByMAC(const uint8_t * MAC) {
+  Serial.print("gesuchte MAC: "); PrintMAC(MAC);
+  bool MACEqual;
+
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    MACEqual = true;
+    for (int b; b<6; b++) {
+      if (P[PNr].BroadcastAddress[b] != MAC[b]) { MACEqual = false; break; }
+    }
+    Serial.println("Peer mit MAC: "); PrintMAC(MAC); Serial.print("ist: "); Serial.println(P[PNr].Name);
+    if (MACEqual) return &P[PNr];
+  }
   return NULL;
 }
 struct_Peer *FindEmptyPeer() {
