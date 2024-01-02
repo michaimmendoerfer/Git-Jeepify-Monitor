@@ -80,7 +80,7 @@ struct_Peer   *FindEmptyPeer();
 struct_Peer   *FindFirstPeer(int Type=MODULE_ALL);
 struct_Peer   *FindNextPeer (struct_Peer *Peer, int Type=MODULE_ALL);
 struct_Peer   *FindPrevPeer (struct_Peer *Peer, int Type=MODULE_ALL);
-void SelectPeer();
+struct_Peer   *SelectPeer();
 
 int    TouchQuarter(void);
 int    TouchRead();
@@ -114,7 +114,7 @@ struct_Periph *PeriphMulti[8];
 Preferences preferences;
 
 struct_Peer   *ActivePeer, *ActivePDC, *ActiveBat, *ActiveSelection;
-struct_Periph *ActiveSens, *ActiveSwitch;
+struct_Periph *ActiveSens, *ActiveSwitch, *ActivePeriph;
 
 int PeerCount    =  0;
 int Mode         =  S_MENU;
@@ -227,6 +227,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               sprintf(Buf, "N%d", Si);      // Name0
               strcpy(Peer->S[Si].Name, doc[Buf]);
               Peer->S[Si].Id = Si;
+              Peer->S[Si].PeerId = Peer->Id;
             }
           }   
           SavePeers();
@@ -385,7 +386,14 @@ void loop() {
           break;
         case S_MULTI    : 
           switch (Touch.Gesture) {
-            case CLICK:       Mode = S_MENU; break;
+            case CLICK:       
+              switch (TouchQuarter()) {
+                case 0: ToggleSwitch(&P[PeriphMulti[0]->PeerId], PeriphMulti[0]); break;
+                case 1: ToggleSwitch(&P[PeriphMulti[1]->PeerId], PeriphMulti[1]); break;
+                case 2: ToggleSwitch(&P[PeriphMulti[2]->PeerId], PeriphMulti[2]); break;
+                case 3: ToggleSwitch(&P[PeriphMulti[3]->PeerId], PeriphMulti[3]); break;
+              }
+              break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
@@ -560,6 +568,7 @@ void SavePeers() {
         sprintf(Buf, "P%d-SensId%d", Pi, Si);
         Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Id);
         if (preferences.getInt(Buf, 0) != P[Pi].S[Si].Id) preferences.putInt(Buf, P[Pi].S[Si].Id);
+
       }
     }
   }
@@ -611,6 +620,8 @@ void GetPeers() {
         
         sprintf(Buf, "P%d-SensId%d", Pi, Si);
         P[Pi].S[Si].Id = preferences.getInt(Buf, 0);
+        
+        P[Pi].S[Si].PeerId = P[Pi].Id;
         
         sprintf(Buf, "SName%d=%s, SType%d=%d, SId%d=%d", Si, BufS, Si, P[Pi].S[Si].Type, Si, P[Pi].S[Si].Id);
         Serial.println(Buf);
@@ -878,7 +889,8 @@ void ShowSwitch4(int Start) {
           TFTBuffer.drawString(ActivePeer->S[Si].Name, 70+Col*100, 85+Row*90);
         }
       }
-      Si++;
+      Si++; 
+      if (Si == MAX_PERIPHERALS) break;
     }
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
     TFTBuffer.drawString(ActivePeer->Name, 120,15);
@@ -1254,7 +1266,10 @@ bool isSensorAmp(struct_Periph *Periph) {
 bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
   int ret = false;
   if (Stop == 99) Stop = Start;
-  for (int Si=Start; Si++; Si<Stop+1) if (Peer->S[Si].Changed) ret = true;
+  for (int Si=Start; Si++; Si<Stop+1) {
+    if (Si == MAX_PERIPHERALS) break;
+    if (Peer->S[Si].Changed) ret = true;
+  }
   return ret;
 }
 struct_Periph *FindSensorByNumber(struct_Peer *Peer, int Id) {
@@ -1345,21 +1360,55 @@ struct_Periph *FindPrevPeriph (struct_Peer *Peer, struct_Periph *Periph, int Typ
   }
   return Periph;
 }
-void SelectPeer() {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
-    ScreenChanged = true;
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
-    TFTBuffer.fillSmoothRoundRect(50, 50, 140, 140, 10, TFT_LIGHTGREY, TFT_BLACK);
-    TFTBuffer.loadFont(AA_FONT_SMALL);
-
-    TFTBuffer.setTextColor(TFT_RUBICON, TFT_LIGHTGREY);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.drawString("-", 120,  80);
-    TFTBuffer.drawString("+", 120, 160);
-    TFTBuffer.drawString(ActiveSelection->Name, 120, 120);
-    
-    TSScreenRefresh = millis();
+struct_Periph *SelectPeriph() {
+  if (!ActivePeer) ActivePeer = FindFirstPeer();
+  if (ActivePeer) {
+    if (!ActivePeriph) ActivePeriph = FindFirstPeriph(ActivePeer, false);
+    if (ActivePeriph) {
+      if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+        ScreenChanged = true;
+        TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
+        TFTBuffer.loadFont(AA_FONT_LARGE);
+        TFTBuffer.setTextDatum(MC_DATUM);
+        TFTBuffer.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+        TFTBuffer.drawString(ActivePeriph->Name, 120, 120);
+        TFTBuffer.unloadFont();
+        
+        TFTBuffer.loadFont(AA_FONT_SMALL);
+        TFTBuffer.drawString(P[ActivePeriph->PeerId].Name, 120,  80);
+        
+        switch (ActivePeriph->Type) {
+          case SENS_TYPE_AMP:    TFTBuffer.drawString("Amp-Sensor",  120, 160); break;
+          case SENS_TYPE_VOLT:   TFTBuffer.drawString("Volt-Sensor", 120, 160); break;
+          case SENS_TYPE_SWITCH: TFTBuffer.drawString("Switch",      120, 160); break;
+        }
+        TSScreenRefresh = millis();      
+        return (ActivePeriph);
+      }
+    }
   }
+  return NULL;
+}
+struct_Peer   *SelectPeer() {
+  if (!ActivePeer) ActivePeer = FindFirstPeer();
+  if (ActivePeer) {
+    if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+      ScreenChanged = true;
+      TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
+      TFTBuffer.fillSmoothRoundRect(50, 50, 140, 140, 10, TFT_LIGHTGREY, TFT_BLACK);
+      TFTBuffer.loadFont(AA_FONT_SMALL);
+
+      TFTBuffer.setTextColor(TFT_RUBICON, TFT_LIGHTGREY);
+      TFTBuffer.setTextDatum(MC_DATUM);
+      TFTBuffer.drawString("-", 120,  80);
+      TFTBuffer.drawString("+", 120, 160);
+      TFTBuffer.drawString(ActiveSelection->Name, 120, 120);
+      
+      TSScreenRefresh = millis();
+      return (ActivePeer);
+    }
+  }
+  return NULL;
 }
 struct_Peer *FindPeerByName(String Name) {
   //Serial.print("gesuchter Name: "); Serial.println(Name.c_str());
