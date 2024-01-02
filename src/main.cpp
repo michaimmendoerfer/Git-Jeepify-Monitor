@@ -300,7 +300,7 @@ void setup() {
 }
 void loop() {
   /*if ((TSMsgStart) and (millis() - TSMsgStart > LOGO_INTERVAL)) {
-    Mode = S_MENU;
+    Mode = S_MENU; 
     TSMsgStart = 0;
   }*/
   if (millis() - TSPing  > PING_INTERVAL)  {
