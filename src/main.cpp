@@ -14,7 +14,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 0.97"
+#define VERSION   "V 0.98"
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
@@ -60,6 +60,7 @@ void   ShowPeers();
 void   ShowPairing();
 
 int    RingMeter(float vmin, float vmax, const char *units, byte scheme);
+void   LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, int StartRed);
 
 bool   PeriphChanged(struct_Peer *Peer, int Start, int Stop=99);
 bool   isPDC (struct_Peer *Peer);
@@ -291,26 +292,21 @@ void setup() {
     //Workaround
   for (int PNr=0; PNr<MAX_PEERS; PNr++) P[PNr].Id = PNr;
 
-  InitModule();
+  InitModule();  
   GetPeers();
   RegisterPeers();
   
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
   
-  /*PeriphMulti[0] = &P[0].S[0];
-  PeriphMulti[1] = &P[0].S[1];
-  PeriphMulti[2] = &P[0].S[0];
-  PeriphMulti[3] = &P[0].S[1];
-  */
   Mode = 1;
   TSScreenRefresh = millis();
   TSTouch         = millis();
-  TSMsgStart      = millis();
 }
 void loop() {
   if ((TSMsgStart) and (millis() - TSMsgStart > LOGO_INTERVAL)) { Mode = S_MENU; TSMsgStart = 0; }
-  if (millis() - TSPing  > PING_INTERVAL)  { TSPing = millis(); SendPing(); }
-  if (millis() - TSTouch > TOUCH_INTERVAL) {
+  if (!TSMsgStart) {
+    if (millis() - TSPing     > PING_INTERVAL)  { TSPing = millis(); SendPing(); }
+    if (millis() - TSTouch    > TOUCH_INTERVAL) {
     int TouchErg = TouchRead();
     if (TouchErg > 1) {
       switch (Mode) {
@@ -500,6 +496,7 @@ void loop() {
   TSTouch = millis();
   ScreenUpdate();  
   }
+  }
 }
 void ScreenUpdate() {
   if (!TSMsgStart) {
@@ -544,6 +541,9 @@ void InitModule() {
   TFT.setRotation(Rotation);
   TFT.setSwapBytes(true);
 
+  TFT.pushImage(0,0, 240, 240, JeepifyLogo); 
+  TSMsgStart = millis();
+
   TFTBuffer.createSprite(240,240);
   TFTBuffer.setSwapBytes(true);
   
@@ -551,13 +551,11 @@ void InitModule() {
   TFTGaugeSwitch.setSwapBytes(false);
   TFTGaugeSwitch.pushImage(0, 0, 100, 100, BtnSmall);
 
-  TFT.pushImage(0,0, 240, 240, JeepifyLogo); 
   TFT.loadFont(AA_FONT_SMALL); 
   TFT.setTextColor(TFT_BLACK, TFT_RED, false);
   TFT.setTextDatum(MC_DATUM); 
   TFT.drawString(VERSION, 120,60);
-  
-  TSMsgStart = 0;
+  TFT.unloadFont();
   
   Serial.println("InitModule() fertig...");
 }
@@ -976,10 +974,6 @@ void ShowSwitch4(int Start) {
 void ShowMulti(int Start) {
   FirstDisplayedSwitch = Start;
   char Buf[20];
-
-  noInterrupts(); 
-    for (int Si=0; Si<4; Si++) TempValue[Si] = PeriphMulti[Si]->Value;  
-  interrupts();
   
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;     
@@ -993,37 +987,47 @@ void ShowMulti(int Start) {
     int Si = Start;
     for (int Row=0; Row<2; Row++) {
       for (int Col=0; Col<2; Col++) {
-        if (isSwitch(PeriphMulti[Start+Si])) {
-          TFTBuffer.loadFont(AA_FONT_SMALL); 
-          TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-          if (PeriphMulti[Start+Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
-          else                                   TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
-          TFTBuffer.drawString(PeriphMulti[Start+Si]->Name, 70+Col*100, 85+Row*90);
-          TFTBuffer.unloadFont();
-        }
-        else if (isSensorAmp (PeriphMulti[Start+Si])) {
-          TFTBuffer.drawSmoothArc(72, 75, 46, 38, 90, 270, TFT_RUBICON, 0x18E3, true);
-          
-          TFTBuffer.loadFont(AA_FONT_SMALL); 
-          //dtostrf(TempValue[Si], 0, 1, Buf);
-          dtostrf(88.8, 0, 1, Buf);
-          TFTBuffer.drawString(Buf, 72+Col*120, 65+Row*120);
-          TFTBuffer.unloadFont();
-          
-          TFTBuffer.loadFont(AA_FONT_SMALL); 
-          TFTBuffer.drawString(PeriphMulti[Start+Si]->Name,  72+Col*120, 90+Row*120);
-          TFTBuffer.unloadFont();
-        }
-        else if (isSensorVolt(&ActivePeer->S[Si])) {
-          TFTBuffer.loadFont(AA_FONT_LARGE); 
-          TFTBuffer.drawString(PeriphMulti[Start+Si]->Name,  70+Col*120, 45+Row*120);
-          TFTBuffer.unloadFont();
+        if (PeriphMulti[Si]) {
+          noInterrupts(); 
+            TempValue[Si] = PeriphMulti[Si]->Value;  
+          interrupts();
+          if (isSwitch(PeriphMulti[Start+Si])) {
+            TFTBuffer.loadFont(AA_FONT_SMALL); 
+            TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
+            if (PeriphMulti[Start+Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
+            else                                   TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
+            TFTBuffer.drawString(PeriphMulti[Start+Si]->Name, 70+Col*96, 85+Row*90);
+            TFTBuffer.unloadFont();
+          }
+          else if (isSensorAmp (PeriphMulti[Start+Si])) {
+            TempValue[Si] = 25.3;
+            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
+            
+            TFTBuffer.loadFont(AA_FONT_MONO); 
+            dtostrf(TempValue[Si], 0, 1, Buf);
+            strcat(Buf, " A");
+            TFTBuffer.drawString(Buf, 72+Col*96, 75+Row*90);
+            TFTBuffer.unloadFont();
+            
+            TFTBuffer.loadFont(AA_FONT_SMALL); 
+            TFTBuffer.drawString(PeriphMulti[Start+Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.unloadFont();
+          }
+          else if (isSensorVolt(PeriphMulti[Start+Si])) {
+            TempValue[Si] = 13.5;
+            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
-          TFTBuffer.loadFont(AA_FONT_SMALL); 
-          dtostrf(TempValue[Si], 0, 2, Buf);
-          TFTBuffer.drawString(Buf, 60+Col*120, 90+Row*120);
-          TFTBuffer.unloadFont();
-        }
+            TFTBuffer.loadFont(AA_FONT_MONO); 
+            dtostrf(TempValue[Si], 0, 1, Buf);
+            strcat(Buf, " V");
+            TFTBuffer.drawString(Buf, 72+Col*96, 75+Row*90);
+            TFTBuffer.unloadFont();
+
+            TFTBuffer.loadFont(AA_FONT_SMALL); 
+            TFTBuffer.drawString(PeriphMulti[Start+Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.unloadFont();
+          }
+        }  
         Si++;
       }
     }
@@ -1034,6 +1038,36 @@ void ShowMulti(int Start) {
     TFTBuffer.unloadFont(); 
   }
   TSScreenRefresh = millis(); 
+}
+void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, int StartRed) {
+  char Buf[100];
+
+  int R1 = 42;
+  int R2 = 35;
+  int StartAngle   =  60;
+  int EndAngle     = 300;
+  int Range = Max-Min;
+  
+  //LittleGauge(TempValue[Si], 72+Col*120, 75+Row*120, 0, 35, 20, 30);
+          
+  float ToGo = StartAngle + (EndAngle-StartAngle)/Range*(Value-Min);
+
+  float YellowAngle = StartAngle + (EndAngle-StartAngle)/Range*StartYellow;
+  float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
+  
+  sprintf(Buf, "Value:%f, Range:%d, ToGo:%d, StartYellow:%d(%d), StartRed:%d(%d)", Value, Range, (int)ToGo, StartYellow, (int)YellowAngle, StartRed, (int)RedAngle);
+  Serial.println(Buf);
+
+  TFTBuffer.drawSmoothArc(x, y, R1, R2, ToGo, EndAngle, TFT_DARKGREY, 0x18E3, false);
+  if  (ToGo < YellowAngle) TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle, (int)ToGo,        TFT_GREEN,  0x18E3, false);
+  if ((ToGo >= YellowAngle) and (ToGo < RedAngle)) {
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)ToGo,        TFT_YELLOW, 0x18E3, false);
+  }
+  if (ToGo >= RedAngle)  { TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)RedAngle,    TFT_YELLOW, 0x18E3, false);
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)RedAngle,    (int)ToGo,        TFT_RED,    0x18E3, false);
+  }         
 }
 void ShowPairing() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -1718,7 +1752,8 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
     else if (value<100) nk = 1;
     else                nk = 0;
 
-    dtostrf(value, 0, nk, buf);
+    if (value == -99) strcpy(buf, "--"); 
+    else dtostrf(value, 0, nk, buf);
 
     TFTBuffer.loadFont(AA_FONT_LARGE); 
     TFTBuffer.setTextColor(0xF1C7,TFT_BLACK);
