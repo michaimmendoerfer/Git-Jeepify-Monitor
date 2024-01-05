@@ -14,7 +14,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 0.98"
+#define VERSION   "V 1.01"
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
@@ -39,7 +39,7 @@ void   SetDebugMode(bool Mode);
 
 void   DrawButton(int z, bool Selected = false);
 bool   ButtonHit(int b);
-int    CalcField(int x, int y);
+int    CalcField();
 void   AddVolt(int i);
 void   EichenVolt();
 
@@ -315,23 +315,16 @@ void loop() {
             case CLICK:       
               switch (TouchQuarter()) {
                 case 0: 
-                  Serial.println("vor ActiveBat Suche");
                   if (!ActiveSens) ActiveSens = FindFirstPeriph(ActivePeer, SENS_TYPE_SENS, false);
-                  Serial.print("ActiveSens="); Serial.println(ActiveSens->Name);
-                  
                   if (!ActiveSens) ShowMessage("No Sensor"); 
                   else  Mode = S_SENSOR1;
-                  
                   break;
                 case 1: 
                   if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePeer, SENS_TYPE_SWITCH);
-                  if (ActiveSwitch) Mode = S_SWITCH1;
+                  if (!ActiveSwitch) ShowMessage("No Switch");
+                  else Mode = S_SWITCH1;
                   break;
                 case 2: 
-                  //if (!ActiveSelection) ActiveSelection = FindFirstPeer();
-                  //if (!ActiveSelection) { ShowMessage("No Peers"); break; }
-                  //else Mode = S_PEER_SEL;
-                  //break;
                   Mode = S_MULTI;
                   break;
                 case 3: Mode = S_SETTING;  break;
@@ -348,20 +341,16 @@ void loop() {
         case S_SENSOR1: 
           switch (Touch.Gesture) {
             case CLICK:       
-              Serial.print("vorher: "); Serial.println(ActiveSens->Name);
               ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
               ScreenChanged = true; 
-              Serial.print("nachher: "); Serial.println(ActiveSens->Name);
               break;
             case SWIPE_LEFT:  
               ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
               ScreenChanged = true; 
               break;
             case SWIPE_RIGHT: 
-              Serial.print("vorher: "); Serial.println(ActiveSens->Name);
               ActiveSens = FindPrevPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
               ScreenChanged = true; 
-              Serial.print("nachher: "); Serial.println(ActiveSens->Name);
               break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
@@ -426,28 +415,26 @@ void loop() {
         case S_SETTING:
           switch (Touch.Gesture) {
             case CLICK:            if (ButtonHit( 5)) { ESP.restart(); }
-                              else if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
                               else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
                               else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
                               else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
                               else if (ButtonHit(13)) { SavePeriphMulti(); ChangesSaved = true; ScreenChanged = true; }
-                              
-                              
                               break;
+            case LONG_PRESS:  if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           } 
           break;
         case S_PEER    : 
           switch (Touch.Gesture) {
-            case CLICK:            if (ButtonHit( 5)) SendCommand(ActivePeer, "Restart");
-                              else if (ButtonHit( 6)) SendCommand(ActivePeer, "Reset");
-                              else if (ButtonHit( 7)) SendCommand(ActivePeer, "Pair");
-                              else if (ButtonHit( 8)) SendCommand(ActivePeer, "Eichen");
-                              else if (ButtonHit( 9)) SendCommand(ActivePeer, "VoltCalib");
-                              else if (ButtonHit(10)) SendCommand(ActivePeer, "SleepMode Toggle");
-                              else if (ButtonHit(11)) SendCommand(ActivePeer, "Debug Toggle");
+            case CLICK:            if (ButtonHit( 5))   SendCommand(ActivePeer, "Restart");
+                              else if (ButtonHit( 7))   SendCommand(ActivePeer, "Pair");
+                              else if (ButtonHit( 8)) { TSMsgEich = millis(); SendCommand(ActivePeer, "Eichen"); }
+                              else if (ButtonHit( 9)) { Mode = S_CAL_VOL; EichenVolt(); }
+                              else if (ButtonHit(10))   SendCommand(ActivePeer, "SleepMode Toggle");
+                              else if (ButtonHit(11))   SendCommand(ActivePeer, "Debug Toggle");
                               break;
+            case LONG_PRESS:  if (ButtonHit( 6))        SendCommand(ActivePeer, "Reset");
             case SWIPE_LEFT:  ActivePeer = FindNextPeer(ActivePeer); ScreenChanged = true; break; 
             case SWIPE_RIGHT: ActivePeer = FindPrevPeer(ActivePeer); ScreenChanged = true; break; 
             case SWIPE_UP:    Mode = S_MENU; break;
@@ -489,6 +476,15 @@ void loop() {
         case S_PAIRING: 
           switch (Touch.Gesture) {
             case CLICK: TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
+          }
+          break;
+        case S_CAL_VOL: 
+          switch (Touch.Gesture) {
+            case CLICK: AddVolt(CalcField()); break; 
+            case SWIPE_LEFT:  Mode = S_MENU;  break;
+            case SWIPE_RIGHT: Mode = S_MENU;  break;
+            case SWIPE_UP:    Mode = S_MENU;  break;
+            case SWIPE_DOWN:  Mode = S_MENU;  break;
           }
           break;
       }
@@ -1388,10 +1384,12 @@ bool isSensorAmp(struct_Periph *Periph) {
 }
 bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
   int ret = false;
-  if (Stop == 99) Stop = Start;
-  for (int Si=Start; Si++; Si<Stop+1) {
-    if (Si == MAX_PERIPHERALS) break;
-    if (Peer->S[Si].Changed) ret = true;
+  if (Peer) {
+    if (Stop == 99) Stop = Start;
+    for (int Si=Start; Si++; Si<Stop+1) {
+      if (Si == MAX_PERIPHERALS) break;
+      if (Peer->S[Si].Changed) ret = true;
+    }
   }
   return ret;
 }
@@ -1685,7 +1683,7 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
       
     noInterrupts(); 
       float value = ActiveSens->Value; 
-      if (value < SCHWELLE) value = 0;
+      if (abs(value < SCHWELLE)) value = 0;
     interrupts();
 
     char buf[20];
@@ -1809,7 +1807,7 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
   
   return x + r;
 }
-int  CalcField(int x, int y) {
+int  CalcField() {
   int Field = 1;
   int z    = 0;
   int StartX   = (240 - (6*ButtonRd) - 2*ButtonGapX)/2 + ButtonRd;
@@ -1821,7 +1819,7 @@ int  CalcField(int x, int y) {
     for (int c=0; c<3; c++) {
       int x1 = StartX + c*(ButtonRd*2 + ButtonGapX) - ButtonRd;
       int x2 = x1+ButtonRd*2;
-      if ((x>x1 and x<x2) and (y>y1 and y<y2)) {
+      if ((Touch.x1>x1 and Touch.x1<x2) and (Touch.y1>y1 and Touch.y1<y2)) {
         Serial.println(Field);
         return Field;
       }
@@ -1856,8 +1854,9 @@ void AddVolt(int i) {
     
     serializeJson(doc, jsondata);  
   
-    //esp_now_send(broadcastAddressBattery,     (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
-    //esp_now_send(broadcastAddressBattery8266, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    esp_now_send(ActivePeer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    Serial.println(jsondata);
+  
     Serial.println(jsondata);
 
     TSMsgVolt = millis();
@@ -1888,25 +1887,6 @@ void EichenVolt() {
 
     TSScreenRefresh = millis();
   }
-}
-void ForceEichen() {
-  StaticJsonDocument<500> doc;
-  String jsondata;
-  doc.clear();
-  jsondata = "";
-
-  doc["Node"] = NODE_NAME;   
-  doc["Order"] = "Eichen";
-  
-  serializeJson(doc, jsondata);  
-  
-  //esp_now_send(broadcastAddressBattery,     (uint8_t *) jsondata.c_str(), 50);  //Sending "jsondata"  
-  //esp_now_send(broadcastAddressBattery8266, (uint8_t *) jsondata.c_str(), 50);  //Sending "jsondata"  
-
-  Serial.println(jsondata);
-  jsondata = "";
-
-  TSMsgEich = millis();
 }
 float mapf(float x, float in_min, float in_max, float out_min, float out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
