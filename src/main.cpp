@@ -808,7 +808,7 @@ void DeletePeer(struct_Peer *Peer) {
       P[PNr].Name[0] = 0;
       P[PNr].Id = 0;
       P[PNr].Type = 0;
-      P[PNr].BroadcastAddress = {0,0,0,0,0,0};
+      //P[PNr].BroadcastAddress = {0,0,0,0,0,0};
       P[PNr].TSLastSeen = 0;
       P[PNr].Sleep = false;
       P[PNr].Debug = false;
