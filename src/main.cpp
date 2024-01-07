@@ -14,7 +14,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 1.01"
+#define VERSION   "V 1.02"
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
@@ -73,7 +73,7 @@ bool   isSwitch(struct_Periph *Periph);
 bool   isSensor(struct_Periph *Periph);
 bool   isSensorAmp (struct_Periph *Periph);
 bool   isSensorVolt(struct_Periph *Periph);
-struct_Periph *FindPeriphById (struct_Peer *Peer, uint8_t Id);
+struct_Periph *FindPeriphById (struct_Peer *Peer, uint16_t Id);
 struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual=false);
 struct_Periph *FindNextPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
 struct_Periph *FindPrevPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
@@ -84,6 +84,7 @@ struct_Peer   *FindEmptyPeer();
 struct_Peer   *FindFirstPeer(int Type=MODULE_ALL);
 struct_Peer   *FindNextPeer (struct_Peer *Peer, int Type=MODULE_ALL);
 struct_Peer   *FindPrevPeer (struct_Peer *Peer, int Type=MODULE_ALL);
+int            FindHighestPeerId();
 struct_Peer   *SelectPeer();
 struct_Periph *SelectPeriph();
 
@@ -219,8 +220,9 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     else {
       if ((doc["Pairing"] == "add me") and (ReadyToPair)) { // neuen Peer registrieren
         Peer = FindEmptyPeer();
-
+        
         if (Peer) {
+          Peer->Id = FindHighestPeerId()+1;
           Serial.print("gefundener Slot Id="); Serial.println(Peer->Id);
           for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
           PrintMAC(Peer->BroadcastAddress);
@@ -244,7 +246,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           
           SendPairingConfirm(Peer);
 
-          ReadyToPair = false; TSPair = 0;
+          ReadyToPair = false; TSPair = 0; 
         }
       }
     }
@@ -290,7 +292,7 @@ void setup() {
   Serial.println("InitModule...");
 
     //Workaround
-  for (int PNr=0; PNr<MAX_PEERS; PNr++) P[PNr].Id = PNr;
+  //for (int PNr=0; PNr<MAX_PEERS; PNr++) P[PNr].Id = PNr;
 
   InitModule();  
   GetPeers();
@@ -457,7 +459,21 @@ void loop() {
           break;
         case S_PEERS: 
           switch (Touch.Gesture) {
-            case CLICK:       Mode = S_MENU; break;
+            case CLICK:       for (int PNr=0 ; PNr<MAX_PEERS ; PNr++) {
+                                if (P[PNr].Type) {
+                                  int Abstand = 20;
+                                  if ((Touch.y1>80+PNr*Abstand) and (Touch.y1<80+PNr*(Abstand+1))) {
+                                    struct_Peer *TempPeer = FindPeerById(P[PNr].Id);
+                                    if (TempPeer) {
+                                      ActivePeer = TempPeer;
+                                      Mode = S_PEER;
+                                      ScreenChanged = true;
+                                      break;
+                                    }
+                                  }
+                                }
+                              }
+                              break;
             case SWIPE_LEFT:  Mode = S_MENU; break;
             case SWIPE_RIGHT: Mode = S_MENU; break;
             case SWIPE_UP:    Mode = S_MENU; break;
@@ -570,6 +586,11 @@ void SavePeers() {
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].Type);
       if (preferences.getInt(Buf, 0) != P[Pi].Type) preferences.putInt(Buf, P[Pi].Type);
       
+      //P.Id
+      sprintf(BufNr, "%d", Pi); strcpy(Buf, "Id-"); strcat(Buf, BufNr);
+      Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].Id);
+      if (preferences.getInt(Buf, 0) != P[Pi].Id) preferences.putInt(Buf, P[Pi].Id);
+      
       //P.BroadcastAddress
       strcpy(Buf, "MAC-"); strcat (Buf, BufNr);
       preferences.putBytes(Buf, P[Pi].BroadcastAddress, 6);
@@ -638,13 +659,17 @@ void GetPeers() {
     Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
     if (preferences.getInt(Buf) > 0) {
       PeerCount++;
-      P[Pi].Id = Pi;
 
       // P.Type
       P[Pi].Type = preferences.getInt(Buf);
       if (ActivePeer == NULL) ActivePeer = &P[Pi];
       if (isPDC(&P[Pi]) and (ActivePDC == NULL)) ActivePDC = &P[Pi];
       if (isBat(&P[Pi]) and (ActiveBat == NULL)) ActiveBat = &P[Pi];
+      
+      // P.Id
+      sprintf(BufNr, "%d", Pi); strcpy(Buf, "Id-"); strcat(Buf, BufNr);
+      Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
+      P[Pi].Id = preferences.getInt(Buf);
 
       // P.BroadcastAdress
       strcpy(Buf, "MAC-"); strcat (Buf, BufNr);
@@ -776,6 +801,24 @@ void ClearPeers() {
     preferences.clear();
     Serial.println("JeepifyPeers cleared...");
   preferences.end();
+}
+void DeletePeer(struct_Peer *Peer) {
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    if (P[PNr].Id == Peer->Id) {
+      P[PNr].Name[0] = 0;
+      P[PNr].Id = 0;
+      P[PNr].Type = 0;
+      P[PNr].BroadcastAddress = {0,0,0,0,0,0};
+      P[PNr].TSLastSeen = 0;
+      P[PNr].Sleep = false;
+      P[PNr].Debug = false;
+    }
+  }
+  SendCommand(Peer, "Reset");
+  
+  for (int Si=0; Si<PERIPH_MULTI_SIZE; Si++) {
+    if (PeriphMulti[Si]->PeerId == Peer->Id) PeriphMulti[Si] = NULL;
+  }
 }
 void ClearInit() {
   preferences.begin("JeepifyInit", false);
@@ -1035,36 +1078,6 @@ void ShowMulti(int Start) {
   }
   TSScreenRefresh = millis(); 
 }
-void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, int StartRed) {
-  char Buf[100];
-
-  int R1 = 42;
-  int R2 = 35;
-  int StartAngle   =  60;
-  int EndAngle     = 300;
-  int Range = Max-Min;
-  
-  //LittleGauge(TempValue[Si], 72+Col*120, 75+Row*120, 0, 35, 20, 30);
-          
-  float ToGo = StartAngle + (EndAngle-StartAngle)/Range*(Value-Min);
-
-  float YellowAngle = StartAngle + (EndAngle-StartAngle)/Range*StartYellow;
-  float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
-  
-  sprintf(Buf, "Value:%f, Range:%d, ToGo:%d, StartYellow:%d(%d), StartRed:%d(%d)", Value, Range, (int)ToGo, StartYellow, (int)YellowAngle, StartRed, (int)RedAngle);
-  Serial.println(Buf);
-
-  TFTBuffer.drawSmoothArc(x, y, R1, R2, ToGo, EndAngle, TFT_DARKGREY, 0x18E3, false);
-  if  (ToGo < YellowAngle) TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle, (int)ToGo,        TFT_GREEN,  0x18E3, false);
-  if ((ToGo >= YellowAngle) and (ToGo < RedAngle)) {
-                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
-                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)ToGo,        TFT_YELLOW, 0x18E3, false);
-  }
-  if (ToGo >= RedAngle)  { TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
-                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)RedAngle,    TFT_YELLOW, 0x18E3, false);
-                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)RedAngle,    (int)ToGo,        TFT_RED,    0x18E3, false);
-  }         
-}
 void ShowPairing() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;             
@@ -1077,6 +1090,7 @@ void ShowPairing() {
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
 
     TFTBuffer.drawString("Pairing...", 120, 120);
+    if (!ReadyToPair) Mode = S_PEERS;
     TSScreenRefresh = millis(); 
   }
 }
@@ -1393,7 +1407,7 @@ bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
   }
   return ret;
 }
-struct_Periph *FindPeriphById(struct_Peer *Peer, uint8_t Id) {
+struct_Periph *FindPeriphById(struct_Peer *Peer, uint16_t Id) {
   for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
     if (Peer->S[SNr].Id == Id) return &Peer->S[SNr];
   }
@@ -1617,6 +1631,13 @@ struct_Peer *FindPrevPeer(struct_Peer *Peer, int Type) {
   }
   return Peer;
 }
+int          FindHighestPeerId() {
+  int HighestId = -1;
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    if (P[PNr].Id > HighestId) HighestId = P[PNr].Id;
+  }
+  return HighestId;
+}
 int  TouchQuarter(void) {
   if ((Touch.x1<120) and (Touch.y1<120)) return 0;
   if ((Touch.x1>120) and (Touch.y1<120)) return 1;
@@ -1806,6 +1827,36 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
   }
   
   return x + r;
+}
+void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, int StartRed) {
+  char Buf[100];
+
+  int R1 = 42;
+  int R2 = 35;
+  int StartAngle   =  60;
+  int EndAngle     = 300;
+  int Range = Max-Min;
+  
+  //LittleGauge(TempValue[Si], 72+Col*120, 75+Row*120, 0, 35, 20, 30);
+          
+  float ToGo = StartAngle + (EndAngle-StartAngle)/Range*(Value-Min);
+
+  float YellowAngle = StartAngle + (EndAngle-StartAngle)/Range*StartYellow;
+  float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
+  
+  sprintf(Buf, "Value:%f, Range:%d, ToGo:%d, StartYellow:%d(%d), StartRed:%d(%d)", Value, Range, (int)ToGo, StartYellow, (int)YellowAngle, StartRed, (int)RedAngle);
+  Serial.println(Buf);
+
+  TFTBuffer.drawSmoothArc(x, y, R1, R2, ToGo, EndAngle, TFT_DARKGREY, 0x18E3, false);
+  if  (ToGo < YellowAngle) TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle, (int)ToGo,        TFT_GREEN,  0x18E3, false);
+  if ((ToGo >= YellowAngle) and (ToGo < RedAngle)) {
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)ToGo,        TFT_YELLOW, 0x18E3, false);
+  }
+  if (ToGo >= RedAngle)  { TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)RedAngle,    TFT_YELLOW, 0x18E3, false);
+                           TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)RedAngle,    (int)ToGo,        TFT_RED,    0x18E3, false);
+  }         
 }
 int  CalcField() {
   int Field = 1;
