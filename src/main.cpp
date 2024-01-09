@@ -1,3 +1,9 @@
+#define NODE_NAME "Jeep_Monitor_V2"
+#define NODE_TYPE MONITOR_ROUND
+
+#define VERSION   "V 1.02"
+
+#pragma region Includes
 #include <Arduino.h>
 #include "../../jeepify.h"
 #include <TFT_eSPI.h>
@@ -10,12 +16,8 @@
 #include "NotoSansBold15.h"
 #include "NotoSansBold36.h"
 #include "NotoSansMonoSCB20.h"
-
-#define NODE_NAME "Jeep_Monitor_V2"
-#define NODE_TYPE MONITOR_ROUND
-
-#define VERSION   "V 1.02"
-
+#pragma endregion Includes
+#pragma region Function_Definitions
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
 
@@ -94,7 +96,8 @@ int    TouchRead();
 void   PrintMAC(const uint8_t * mac_addr);
 float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
-
+#pragma endregion Function_Definitions
+#pragma region Globals
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
 struct_Button Button[14] = {
@@ -172,6 +175,7 @@ TFT_eSprite TFTBuffer      = TFT_eSprite(&TFT);
 TFT_eSprite TFTGaugeSwitch = TFT_eSprite(&TFT);
 
 CST816D TouchHW(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
+#pragma endregion Globals
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   char* buff = (char*) incomingData;   
@@ -1228,15 +1232,9 @@ void ShowMenu() {
   }
 }
 void PushTFT() {
-  //Serial.println("Beginn push");
   SetMsgIndicator();
-  //Serial.println("nach Msgindicator");
   if (ScreenChanged) {
-    /*Serial.print("ScreenUpdate: ");
-    Serial.print(UpdateCount);
-    Serial.print(" - Gesture: ");
-    Serial.println(Touch.Gesture);
-    */UpdateCount++;
+    UpdateCount++;
     TFTBuffer.pushSprite(0, 0);
     ScreenChanged = false;
   }
