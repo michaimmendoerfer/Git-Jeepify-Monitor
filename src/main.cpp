@@ -578,7 +578,7 @@ void InitModule() {
 void SavePeers() {
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
-  char Buf[50] = {}; char BufNr[5] = {}; String BufS;
+  char Buf[50] = {}; String BufS;
 
   PeerCount = 0;
 
@@ -586,22 +586,22 @@ void SavePeers() {
     if (P[Pi].Type > 0) {
       PeerCount++;
       //P.Type...
-      sprintf(BufNr, "%d", Pi); strcpy(Buf, "Type-"); strcat(Buf, BufNr);
+      sprintf(Buf, "Type-%d", Pi);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].Type);
       if (preferences.getInt(Buf, 0) != P[Pi].Type) preferences.putInt(Buf, P[Pi].Type);
       
       //P.Id
-      sprintf(BufNr, "%d", Pi); strcpy(Buf, "Id-"); strcat(Buf, BufNr);
+      sprintf(Buf, "Id-%d", Pi);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].Id);
       if (preferences.getInt(Buf, 0) != P[Pi].Id) preferences.putInt(Buf, P[Pi].Id);
       
       //P.BroadcastAddress
-      strcpy(Buf, "MAC-"); strcat (Buf, BufNr);
+      sprintf(Buf, "MAC-%d", Pi);
       preferences.putBytes(Buf, P[Pi].BroadcastAddress, 6);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); PrintMAC(P[Pi].BroadcastAddress); Serial.println();
       
       //P.Name
-      strcpy(Buf, "Name-"); strcat(Buf, BufNr);
+      sprintf(Buf, "Name-%d", Pi);
       BufS = P[Pi].Name;
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(BufS);
       if (preferences.getString(Buf, "EmptyName") != BufS) preferences.putString(Buf, BufS);
@@ -654,12 +654,12 @@ void SavePeriphMulti() {
 void GetPeers() {
   preferences.begin("JeepifyPeers", true);
   
-  char Buf[50] = {}; char BufNr[5] = {}; String BufS;
+  char Buf[50] = {}; String BufS;
   
   PeerCount = 0;
   for (int Pi=0; Pi<MAX_PEERS; Pi++) {
     // Peer gefüllt?
-    sprintf(BufNr, "%d", Pi); strcpy(Buf, "Type-"); strcat(Buf, BufNr);
+    sprintf(Buf, "Type-%d", Pi);
     Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
     if (preferences.getInt(Buf) > 0) {
       PeerCount++;
@@ -671,16 +671,16 @@ void GetPeers() {
       if (isBat(&P[Pi]) and (ActiveBat == NULL)) ActiveBat = &P[Pi];
       
       // P.Id
-      sprintf(BufNr, "%d", Pi); strcpy(Buf, "Id-"); strcat(Buf, BufNr);
+      sprintf(Buf, "Id-%d", Pi);
       Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
       P[Pi].Id = preferences.getInt(Buf);
 
       // P.BroadcastAdress
-      strcpy(Buf, "MAC-"); strcat (Buf, BufNr);
+      sprintf(Buf, "MAC-%d", Pi);
       preferences.getBytes(Buf, P[Pi].BroadcastAddress, 6);
       
       // P.Name
-      strcpy(Buf, "Name-"); strcat(Buf, BufNr);
+      sprintf(Buf, "Name-%d", Pi);
       BufS = preferences.getString(Buf);
       strcpy(P[Pi].Name, BufS.c_str());
 
@@ -1406,8 +1406,10 @@ bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
   return ret;
 }
 struct_Periph *FindPeriphById(struct_Peer *Peer, uint16_t Id) {
-  for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
-    if (Peer->S[SNr].Id == Id) return &Peer->S[SNr];
+  if (Peer) {
+    for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+      if (Peer->S[SNr].Id == Id) return &Peer->S[SNr];
+    }
   }
   return NULL;
 }
