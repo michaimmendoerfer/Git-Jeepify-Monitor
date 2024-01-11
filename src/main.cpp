@@ -43,7 +43,6 @@ void   DrawButton(int z, bool Selected = false);
 bool   ButtonHit(int b);
 int    CalcField();
 void   AddVolt(int i);
-void   EichenVolt();
 
 void   SetMsgIndicator();
 void   ScreenUpdate();
@@ -54,6 +53,7 @@ void   ShowSwitch4(int Start=0);
 void   ShowSensor1();
 void   ShowSensor4(int Start=0);
 void   ShowMulti(int Start=0);
+void   ShowEichenVolt();
 void   ShowMenu();
 void   ShowJSON();
 void   ShowSettings();
@@ -261,29 +261,6 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     return;
   }
 }
-void SendPairingConfirm(struct_Peer *Peer) {
-  StaticJsonDocument<500> doc;
-  String jsondata;
-  jsondata = "";  doc.clear();
-              
-  doc["Node"]     = NODE_NAME;   
-  doc["Peer"]     = Peer->Name;
-  doc["Pairing"]  = "you are paired";
-  doc["Type"]     = MONITOR_ROUND;
-  doc["B0"]       = Peer->BroadcastAddress[0];
-  doc["B1"]       = Peer->BroadcastAddress[1];
-  doc["B2"]       = Peer->BroadcastAddress[2];
-  doc["B3"]       = Peer->BroadcastAddress[3];
-  doc["B4"]       = Peer->BroadcastAddress[4];
-  doc["B5"]       = Peer->BroadcastAddress[5];
-
-  serializeJson(doc, jsondata);  
-  Serial.println("prepared... sending you are paired");
-  Serial.println(jsondata);
-  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 200); 
-  Serial.print("Sent you are paired"); 
-  Serial.println(jsondata);         
-}
 void setup() {
   Serial.begin(74880);
 
@@ -436,7 +413,7 @@ void loop() {
             case CLICK:            if (ButtonHit( 5))   SendCommand(ActivePeer, "Restart");
                               else if (ButtonHit( 7))   SendCommand(ActivePeer, "Pair");
                               else if (ButtonHit( 8)) { TSMsgEich = millis(); SendCommand(ActivePeer, "Eichen"); }
-                              else if (ButtonHit( 9)) { Mode = S_CAL_VOL; EichenVolt(); }
+                              else if (ButtonHit( 9)) { Mode = S_CAL_VOL; ShowEichenVolt(); }
                               else if (ButtonHit(10))   SendCommand(ActivePeer, "SleepMode Toggle");
                               else if (ButtonHit(11))   SendCommand(ActivePeer, "Debug Toggle");
                               break;
@@ -513,32 +490,6 @@ void loop() {
   ScreenUpdate();  
   }
   }
-}
-void ScreenUpdate() {
-  if (!TSMsgStart) {
-    switch (Mode) {
-      case S_PAIRING:   ShowPairing();  break;
-      case S_SENSOR1:   ShowSensor1();  break;          
-      case S_SENSOR4:   ShowSensor4();  break;  
-      case S_SWITCH1:   ShowSwitch1();  break;
-      case S_SWITCH4:   ShowSwitch4();  break;
-      case S_MULTI:     ShowMulti(0);   break;
-      
-      case S_JSON:      ShowJSON();     break;  
-      case S_SETTING:   ShowSettings(); break;
-      case S_PEER:      ShowPeer();     break;
-      case S_PEERS:     ShowPeers();    break;
-      case S_PEER_SEL:  SelectPeer();   break;
-      case S_PERI_SEL:  SelectPeriph(); break;
-      case S_CAL_VOL:   EichenVolt();   break;  
-      case S_MENU:      ShowMenu();     break;        
-    }
-  }
-  PushTFT();
-}
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { 
-  Serial.print("\r\nLast Packet Send Status:\t");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 void InitModule() {
   preferences.begin("JeepifyInit", true);
@@ -858,6 +809,29 @@ void SendPing() {
   //Serial.print(", OldMode="); Serial.println(OldMode);
      
 }
+void SendPairingConfirm(struct_Peer *Peer) {
+  StaticJsonDocument<500> doc;
+  String jsondata;
+  jsondata = "";  doc.clear();
+              
+  doc["Node"]     = NODE_NAME;   
+  doc["Peer"]     = Peer->Name;
+  doc["Pairing"]  = "you are paired";
+  doc["Type"]     = MONITOR_ROUND;
+  doc["B0"]       = Peer->BroadcastAddress[0];
+  doc["B1"]       = Peer->BroadcastAddress[1];
+  doc["B2"]       = Peer->BroadcastAddress[2];
+  doc["B3"]       = Peer->BroadcastAddress[3];
+  doc["B4"]       = Peer->BroadcastAddress[4];
+  doc["B5"]       = Peer->BroadcastAddress[5];
+
+  serializeJson(doc, jsondata);  
+  Serial.println("prepared... sending you are paired");
+  Serial.println(jsondata);
+  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 200); 
+  Serial.print("Sent you are paired"); 
+  Serial.println(jsondata);         
+}
 bool ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph) {
   if ((!Peer) or (!Periph)) return false;
   StaticJsonDocument<500> doc;
@@ -894,21 +868,6 @@ void SendCommand(struct_Peer *Peer, String Cmd) {
   jsondata = "";
 }
 #pragma endregion Send-Things
-void DrawButton(int z, bool Selected) {
-  TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
-  TFTBuffer.setTextDatum(MC_DATUM);
-  TFTBuffer.setTextColor(Button[z].TxtColor);
-
-  if (Selected) TFTBuffer.fillSmoothRoundRect(Button[z].x, Button[z].y, Button[z].w, Button[z].h, 10, TFT_DARKGREY, Button[z].BGColor);
-  else          TFTBuffer.drawSmoothRoundRect(Button[z].x, Button[z].y, 10, 8, Button[z].w, Button[z].h, TFT_LIGHTGREY, Button[z].BGColor);
-  TFTBuffer.drawString(Button[z].Name, Button[z].x+Button[z].w/2, Button[z].y+Button[z].h/2);  
-
-   TFTBuffer.unloadFont();
-}
-bool ButtonHit(int b) {
-  return ( ((Touch.x1>Button[b].x) and (Touch.x1<Button[b].x+Button[b].w) and 
-            (Touch.y1>Button[b].y) and (Touch.y1<Button[b].y+Button[b].h)) );
-}
 #pragma region Sensor-Screens
 void ShowSensor1() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (ActiveSens->Changed)) {
@@ -1105,8 +1064,55 @@ void ShowMulti(int Start) {
   }
   TSScreenRefresh = millis(); 
 }
+void ShowEichenVolt() {
+  if (Mode != OldMode) {
+    TSScreenRefresh = millis();
+    VoltCount = 0;
+    VoltCalib = 0;
+  }
+
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+    ScreenChanged = true;
+    OldMode = Mode;
+
+    TFTBuffer.pushImage(0,0, 240, 240, Keypad);  
+    TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.setTextColor(TFT_RUBICON, 0x632C, false);
+
+    char buf[10];
+    dtostrf(VoltCalib, 5, 2, buf);
+
+    TFTBuffer.drawString(buf, 120,25);
+    TFTBuffer.unloadFont();
+
+    TSScreenRefresh = millis();
+  }
+}
 #pragma endregion Sensor-Screens
 #pragma region System-Screens
+void ScreenUpdate() {
+  if (!TSMsgStart) {
+    switch (Mode) {
+      case S_PAIRING:   ShowPairing();  break;
+      case S_SENSOR1:   ShowSensor1();  break;          
+      case S_SENSOR4:   ShowSensor4();  break;  
+      case S_SWITCH1:   ShowSwitch1();  break;
+      case S_SWITCH4:   ShowSwitch4();  break;
+      case S_MULTI:     ShowMulti(0);   break;
+      
+      case S_JSON:      ShowJSON();     break;  
+      case S_SETTING:   ShowSettings(); break;
+      case S_PEER:      ShowPeer();     break;
+      case S_PEERS:     ShowPeers();    break;
+      case S_PEER_SEL:  SelectPeer();   break;
+      case S_PERI_SEL:  SelectPeriph(); break;
+      case S_CAL_VOL:   EichenVolt();   break;  
+      case S_MENU:      ShowMenu();     break;        
+    }
+  }
+  PushTFT();
+}
 void ShowMessage(char *Msg) {
     ScreenChanged = true;             
     
@@ -1273,7 +1279,6 @@ void ShowMenu() {
     TSScreenRefresh = millis();
   }
 }
-#pragma endregion System-Screens
 void PushTFT() {
   SetMsgIndicator();
   if (ScreenChanged) {
@@ -1348,19 +1353,7 @@ void SetMsgIndicator() {
     }
   }
 }
-void SetSleepMode(bool Mode) {
-  preferences.begin("JeepifyInit", false);
-    SleepMode = Mode;
-    if (preferences.getBool("SleepMode", false) != SleepMode) preferences.putBool("SleepMode", SleepMode);
-  preferences.end();
-}
-void SetDebugMode(bool Mode) {
-  preferences.begin("JeepifyInit", false);
-    Debug = Mode;
-    if (preferences.getBool("Debug", false) != Debug) preferences.putBool("Debug", Debug);
-  preferences.end();
-}
-
+#pragma endregion System-Screens
 #pragma region Peer/Periph-Checks
 bool isPDC(struct_Peer *Peer) {
   if (Peer) return ((Peer->Type == SWITCH_1_WAY) or (Peer->Type == SWITCH_2_WAY) or 
@@ -1649,7 +1642,6 @@ int          FindHighestPeerId() {
   return HighestId;
 }
 #pragma endregion Peer/Periph-Checks
-
 #pragma region Touch-Things
 int  TouchQuarter(void) {
   if ((Touch.x1<120) and (Touch.y1<120)) return 0;
@@ -1874,6 +1866,34 @@ void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, i
   }         
 }
 #pragma endregion Gauges
+#pragma region Other
+void SetSleepMode(bool Mode) {
+  preferences.begin("JeepifyInit", false);
+    SleepMode = Mode;
+    if (preferences.getBool("SleepMode", false) != SleepMode) preferences.putBool("SleepMode", SleepMode);
+  preferences.end();
+}
+void SetDebugMode(bool Mode) {
+  preferences.begin("JeepifyInit", false);
+    Debug = Mode;
+    if (preferences.getBool("Debug", false) != Debug) preferences.putBool("Debug", Debug);
+  preferences.end();
+}
+void DrawButton(int z, bool Selected) {
+  TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
+  TFTBuffer.setTextDatum(MC_DATUM);
+  TFTBuffer.setTextColor(Button[z].TxtColor);
+
+  if (Selected) TFTBuffer.fillSmoothRoundRect(Button[z].x, Button[z].y, Button[z].w, Button[z].h, 10, TFT_DARKGREY, Button[z].BGColor);
+  else          TFTBuffer.drawSmoothRoundRect(Button[z].x, Button[z].y, 10, 8, Button[z].w, Button[z].h, TFT_LIGHTGREY, Button[z].BGColor);
+  TFTBuffer.drawString(Button[z].Name, Button[z].x+Button[z].w/2, Button[z].y+Button[z].h/2);  
+
+   TFTBuffer.unloadFont();
+}
+bool ButtonHit(int b) {
+  return ( ((Touch.x1>Button[b].x) and (Touch.x1<Button[b].x+Button[b].w) and 
+            (Touch.y1>Button[b].y) and (Touch.y1<Button[b].y+Button[b].h)) );
+}
 int  CalcField() {
   int Field = 1;
   int z    = 0;
@@ -1930,31 +1950,6 @@ void AddVolt(int i) {
     Mode = S_MENU;
   }
 }
-void EichenVolt() {
-  if (Mode != OldMode) {
-    TSScreenRefresh = millis();
-    VoltCount = 0;
-    VoltCalib = 0;
-  }
-
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
-    ScreenChanged = true;
-    OldMode = Mode;
-
-    TFTBuffer.pushImage(0,0, 240, 240, Keypad);  
-    TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.setTextColor(TFT_RUBICON, 0x632C, false);
-
-    char buf[10];
-    dtostrf(VoltCalib, 5, 2, buf);
-
-    TFTBuffer.drawString(buf, 120,25);
-    TFTBuffer.unloadFont();
-
-    TSScreenRefresh = millis();
-  }
-}
 float mapf(float x, float in_min, float in_max, float out_min, float out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
@@ -1996,3 +1991,8 @@ void PrintMAC(const uint8_t * mac_addr){
            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
   Serial.print(macStr);
 }
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { 
+  Serial.print("\r\nLast Packet Send Status:\t");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+#pragma endregion Other
