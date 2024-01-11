@@ -445,6 +445,7 @@ void loop() {
                                 else if (ButtonHit( 9)) { Mode = S_CAL_VOL; ShowEichenVolt(); }
                                 else if (ButtonHit(10))   SendCommand(ActivePeer, "SleepMode Toggle");
                                 else if (ButtonHit(11))   SendCommand(ActivePeer, "Debug Toggle");
+                                else if (ButtonHit(14))   SendCommand(ActivePeer, "Fake Toggle");
                                 break;
               case LONG_PRESS:  if (ButtonHit( 6))        SendCommand(ActivePeer, "Reset");
               case SWIPE_LEFT:  ActivePeer = FindNextPeer(ActivePeer); ScreenChanged = true; break; 
@@ -472,7 +473,7 @@ void loop() {
               case CLICK:       for (int PNr=0 ; PNr<MAX_PEERS ; PNr++) {
                                   if (P[PNr].Type) {
                                     int Abstand = 20;
-                                    if ((Touch.y1>80+PNr*Abstand) and (Touch.y1<80+PNr*(Abstand+1))) {
+                                    if ((Touch.y1>80+PNr*Abstand) and (Touch.y1<80+(PNr+1)*Abstand)) {
                                       Serial.print("gefundene PNr: "); Serial.println(PNr);
                                       struct_Peer *TempPeer = &P[PNr];
                                       if (TempPeer) {
