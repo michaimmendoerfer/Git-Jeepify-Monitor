@@ -148,8 +148,7 @@ float   TempValue[8] = {0,0,0,0,0,0,0,0};
 
 String jsondataBuf;
 
-int FirstDisplayedSwitch = 0;
-int FirstDisplayedSensor = 0;
+int FirstDisplayedPeriph = 0;
 
 uint32_t TSTouch         = 0;
 uint32_t TSPing          = 0;
@@ -187,8 +186,6 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   String BufS;
   char Buf[10] = {};
   
-  bool PairingSuccess = false;
-
   Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(); Serial.println(jsondata);
   
   DeserializationError error = deserializeJson(doc, jsondata);
@@ -225,13 +222,17 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
         Peer = FindEmptyPeer();
         
         if (Peer) {
-          Peer->Id = FindHighestPeerId()+1;
-          Serial.print("vergebene Id="); Serial.println(Peer->Id);
-          for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
-          PrintMAC(Peer->BroadcastAddress);
-          Serial.println();
           strcpy(Peer->Name, doc["Node"]);
           Peer->Type = doc["Type"];
+
+          Peer->Id = FindHighestPeerId()+1;
+          
+          Serial.print("vergebene Id=");    Serial.println(Peer->Id);
+          //Serial.print("vergebener Slot="); Serial.println(Peer->Slot);
+
+          for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
+          Serial.println();
+
           Peer->TSLastSeen = millis();
           
           for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
@@ -249,7 +250,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           
           SendPairingConfirm(Peer);
 
-          ReadyToPair = false; TSPair = 0; 
+          ReadyToPair = false; TSPair = 0; Mode = S_MENU;
         }
       }
     }
@@ -304,7 +305,8 @@ void setup() {
   
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
   
-  Mode = 1;
+  Mode = S_MENU;
+
   TSScreenRefresh = millis();
   TSTouch         = millis();
 }
@@ -395,6 +397,10 @@ void loop() {
                 case 3: PeriphToFill = 3; Mode = S_PERI_SEL; break;
               }
               break;
+            case SWIPE_LEFT:  if (FirstDisplayedPeriph == 0) FirstDisplayedPeriph = 4
+                              else FirstDisplayedPeriph = 0; 
+                              break;
+            case SWIPE_RIGHT: Mode = S_MENU; break;
             case SWIPE_UP:    Mode = S_MENU; break;
             case SWIPE_DOWN:  Mode = S_MENU; break;
           }
@@ -985,7 +991,7 @@ void ShowSwitch4(int Start) {
   TSScreenRefresh = millis(); 
 }
 void ShowMulti(int Start) {
-  FirstDisplayedSwitch = Start;
+  FirstDisplayedPeriph = Start;
   char Buf[20];
   
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -1000,44 +1006,44 @@ void ShowMulti(int Start) {
     int Si = Start;
     for (int Row=0; Row<2; Row++) {
       for (int Col=0; Col<2; Col++) {
-        if (PeriphMulti[Si]) {
+        if (PeriphMulti[Si+Start]) {
           noInterrupts(); 
-            TempValue[Si] = PeriphMulti[Si]->Value;  
+            TempValue[Si+Start] = PeriphMulti[Si+Start]->Value;  
           interrupts();
-          if (isSwitch(PeriphMulti[Start+Si])) {
+          if (isSwitch(PeriphMulti[Si+Start])) {
             TFTBuffer.loadFont(AA_FONT_SMALL); 
             TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-            if (PeriphMulti[Start+Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
+            if (PeriphMulti[Si+Start]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
             else                                   TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
             TFTBuffer.drawString(PeriphMulti[Start+Si]->Name, 70+Col*96, 85+Row*90);
             TFTBuffer.unloadFont();
           }
           else if (isSensorAmp (PeriphMulti[Start+Si])) {
-            TempValue[Si] = 25.3;
-            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
+            TempValue[Si+Start] = 25.3;
+            LittleGauge(TempValue[Si+Start], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
             TFTBuffer.loadFont(AA_FONT_MONO); 
-            dtostrf(TempValue[Si], 0, 1, Buf);
+            dtostrf(TempValue[Si+Start], 0, 1, Buf);
             strcat(Buf, " A");
             TFTBuffer.drawString(Buf, 72+Col*96, 75+Row*90);
             TFTBuffer.unloadFont();
             
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(PeriphMulti[Start+Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(PeriphMulti[Si+Start]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
-          else if (isSensorVolt(PeriphMulti[Start+Si])) {
+          else if (isSensorVolt(PeriphMulti[Si+Start])) {
             TempValue[Si] = 13.5;
-            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
+            LittleGauge(TempValue[Si+Start], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
             TFTBuffer.loadFont(AA_FONT_MONO); 
-            dtostrf(TempValue[Si], 0, 1, Buf);
+            dtostrf(TempValue[Si+Start], 0, 1, Buf);
             strcat(Buf, " V");
             TFTBuffer.drawString(Buf, 72+Col*96, 75+Row*90);
             TFTBuffer.unloadFont();
 
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(PeriphMulti[Start+Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(PeriphMulti[Si+Start]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
         }  
