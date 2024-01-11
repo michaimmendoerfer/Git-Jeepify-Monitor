@@ -121,7 +121,7 @@ struct_Button Button[14] = {
 #define PERIPH_MULTI_SIZE 8
 struct_Periph *PeriphMulti[PERIPH_MULTI_SIZE];
 float          TempValue[PERIPH_MULTI_SIZE];
-
+int FirstDisplayedPeriph, FirstDisplayedSwitch, FirstDisplayedSensor;
 int PeriphToFill;
 
 Preferences preferences;
@@ -147,8 +147,6 @@ float VoltCalib;
 int   VoltCount;
 
 String jsondataBuf;
-
-int FirstDisplayedPeriph = 0;
 
 uint32_t TSTouch         = 0;
 uint32_t TSPing          = 0;
@@ -397,7 +395,7 @@ void loop() {
                   case 3: PeriphToFill = 3; Mode = S_PERI_SEL; break;
                 }
                 break;
-              case SWIPE_LEFT:  if (FirstDisplayedPeriph == 0) FirstDisplayedPeriph = 4
+              case SWIPE_LEFT:  if (FirstDisplayedPeriph == 0) FirstDisplayedPeriph = 4;
                                 else FirstDisplayedPeriph = 0; 
                                 break;
               case SWIPE_RIGHT: Mode = S_MENU; break;
@@ -1019,7 +1017,7 @@ void ShowMulti(int Start) {
             TFTBuffer.unloadFont();
           }
           else if (isSensorAmp (PeriphMulti[Si])) {
-            TempValue[Si+Start] = 25.3;
+            //TempValue[Si+Start] = 25.3;
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
             TFTBuffer.loadFont(AA_FONT_MONO); 
@@ -1033,7 +1031,7 @@ void ShowMulti(int Start) {
             TFTBuffer.unloadFont();
           }
           else if (isSensorVolt(PeriphMulti[Si])) {
-            TempValue[Si] = 13.5;
+            //TempValue[Si] = 13.5;
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
             TFTBuffer.loadFont(AA_FONT_MONO); 
@@ -1101,13 +1099,13 @@ void ScreenUpdate() {
       case S_PEERS:     ShowPeers();    break;
       case S_PEER_SEL:  SelectPeer();   break;
       case S_PERI_SEL:  SelectPeriph(); break;
-      case S_CAL_VOL:   EichenVolt();   break;  
+      case S_CAL_VOL:   ShowEichenVolt();   break;  
       case S_MENU:      ShowMenu();     break;        
     }
   }
   PushTFT();
 }
-void ShowMessage(char *Msg) {
+void ShowMessage(String Msg) {
     ScreenChanged = true;             
     
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
