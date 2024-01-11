@@ -315,209 +315,209 @@ void loop() {
   if (!TSMsgStart) {
     if (millis() - TSPing     > PING_INTERVAL)  { TSPing = millis(); SendPing(); }
     if (millis() - TSTouch    > TOUCH_INTERVAL) {
-    int TouchErg = TouchRead();
-    if (TouchErg > 1) {
-      switch (Mode) {
-        case S_MENU    : 
-          switch (Touch.Gesture) {
-            case CLICK:       
-              switch (TouchQuarter()) {
-                case 0: 
-                  if (!ActiveSens) ActiveSens = FindFirstPeriph(ActivePeer, SENS_TYPE_SENS, false);
-                  if (!ActiveSens) ShowMessage("No Sensor"); 
-                  else  Mode = S_SENSOR1;
-                  break;
-                case 1: 
-                  if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePeer, SENS_TYPE_SWITCH);
-                  if (!ActiveSwitch) ShowMessage("No Switch");
-                  else Mode = S_SWITCH1;
-                  break;
-                case 2: 
-                  Mode = S_MULTI;
-                  break;
-                case 3: Mode = S_SETTING;  break;
-              } 
-              break;
-            case SWIPE_LEFT:  Mode = S_PEERS; break;
-            case SWIPE_RIGHT: 
-              if (!ActivePeer) ActivePeer = FindFirstPeer();
-              if (ActivePeer)  Mode = S_PEER; 
-              break;
-            case SWIPE_UP:    break;
-          }
-          break;
-        case S_SENSOR1: 
-          switch (Touch.Gesture) {
-            case CLICK:       
-              ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
-              ScreenChanged = true; 
-              break;
-            case SWIPE_LEFT:  
-              ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
-              ScreenChanged = true; 
-              break;
-            case SWIPE_RIGHT: 
-              ActiveSens = FindPrevPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
-              ScreenChanged = true; 
-              break;
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
-          break;
-        case S_SWITCH1: 
-          switch (Touch.Gesture) {
-            case CLICK:       ToggleSwitch(ActivePeer, ActiveSwitch);  break;
-            case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
-            case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
-          break;
-        case S_SWITCH4 : 
-          switch (Touch.Gesture) {
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
-          break;
-        case S_MULTI    : 
-          switch (Touch.Gesture) {
-            case CLICK:       
-              switch (TouchQuarter()) {
-                case 0: ToggleSwitch(&P[PeriphMulti[0]->PeerId], PeriphMulti[0]); break;
-                case 1: ToggleSwitch(&P[PeriphMulti[1]->PeerId], PeriphMulti[1]); break;
-                case 2: ToggleSwitch(&P[PeriphMulti[2]->PeerId], PeriphMulti[2]); break;
-                case 3: ToggleSwitch(&P[PeriphMulti[3]->PeerId], PeriphMulti[3]); break;
-              }
-              break;
-            case LONG_PRESS:
-              switch (TouchQuarter()) {
-                case 0: PeriphToFill = 0; Mode = S_PERI_SEL; break;
-                case 1: PeriphToFill = 1; Mode = S_PERI_SEL; break;
-                case 2: PeriphToFill = 2; Mode = S_PERI_SEL; break;
-                case 3: PeriphToFill = 3; Mode = S_PERI_SEL; break;
-              }
-              break;
-            case SWIPE_LEFT:  if (FirstDisplayedPeriph == 0) FirstDisplayedPeriph = 4
-                              else FirstDisplayedPeriph = 0; 
-                              break;
-            case SWIPE_RIGHT: Mode = S_MENU; break;
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
-          break;
-        case S_PERI_SEL: 
-          switch (Touch.Gesture) {
-            case CLICK:       
-              PeriphMulti[PeriphToFill] = ActivePeriph; 
-              ScreenChanged = true;
-              ChangesSaved = false;
-              Mode = S_MULTI;
-            case SWIPE_LEFT:  
-              ActivePeriph = FindNextPeriph(ActivePeer, ActivePeriph, SENS_TYPE_ALL); 
-              ScreenChanged = true; 
-              break;
-            case SWIPE_RIGHT: 
-              ActivePeriph = FindPrevPeriph(ActivePeer, ActivePeriph, SENS_TYPE_ALL); 
-              ScreenChanged = true; 
-              break;
-            case SWIPE_UP:    Mode = S_MULTI; break;
-            case SWIPE_DOWN:  Mode = S_MULTI; break;
-          }
-          break;
-        case S_SETTING:
-          switch (Touch.Gesture) {
-            case CLICK:            if (ButtonHit( 5)) { ESP.restart(); }
-                              else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
-                              else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
-                              else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
-                              else if (ButtonHit(13)) { SavePeriphMulti(); ChangesSaved = true; ScreenChanged = true; }
-                              break;
-            case LONG_PRESS:  if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          } 
-          break;
-        case S_PEER    : 
-          switch (Touch.Gesture) {
-            case CLICK:            if (ButtonHit( 5))   SendCommand(ActivePeer, "Restart");
-                              else if (ButtonHit( 7))   SendCommand(ActivePeer, "Pair");
-                              else if (ButtonHit( 8)) { TSMsgEich = millis(); SendCommand(ActivePeer, "Eichen"); }
-                              else if (ButtonHit( 9)) { Mode = S_CAL_VOL; ShowEichenVolt(); }
-                              else if (ButtonHit(10))   SendCommand(ActivePeer, "SleepMode Toggle");
-                              else if (ButtonHit(11))   SendCommand(ActivePeer, "Debug Toggle");
-                              break;
-            case LONG_PRESS:  if (ButtonHit( 6))        SendCommand(ActivePeer, "Reset");
-            case SWIPE_LEFT:  ActivePeer = FindNextPeer(ActivePeer); ScreenChanged = true; break; 
-            case SWIPE_RIGHT: ActivePeer = FindPrevPeer(ActivePeer); ScreenChanged = true; break; 
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
-          break;
-        case S_PEER_SEL   : 
-          switch (Touch.Gesture) {
-            case CLICK:       
-              ActivePeer = ActiveSelection; 
-              if (isBat(ActivePeer)) ActiveBat = ActivePeer;
-              if (isPDC(ActivePeer)) ActivePDC = ActivePeer;
-              ActiveSens = NULL;
-              ActiveSwitch = NULL;
-              Mode = S_MENU; 
-              break;
-            case SWIPE_UP:    ActiveSelection = FindPrevPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
-            case SWIPE_DOWN:  ActiveSelection = FindNextPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
-          }
-          break;
-        case S_PEERS: 
-          switch (Touch.Gesture) {
-            case CLICK:       for (int PNr=0 ; PNr<MAX_PEERS ; PNr++) {
-                                if (P[PNr].Type) {
-                                  int Abstand = 20;
-                                  if ((Touch.y1>80+PNr*Abstand) and (Touch.y1<80+PNr*(Abstand+1))) {
-                                    struct_Peer *TempPeer = FindPeerById(P[PNr].Id);
-                                    if (TempPeer) {
-                                      ActivePeer = TempPeer;
-                                      Mode = S_PEER;
-                                      ScreenChanged = true;
-                                      break;
+      int TouchErg = TouchRead();
+      if (TouchErg > 1) {
+        switch (Mode) {
+          case S_MENU    : 
+            switch (Touch.Gesture) {
+              case CLICK:       
+                switch (TouchQuarter()) {
+                  case 0: 
+                    if (!ActiveSens) ActiveSens = FindFirstPeriph(ActivePeer, SENS_TYPE_SENS, false);
+                    if (!ActiveSens) ShowMessage("No Sensor"); 
+                    else  Mode = S_SENSOR1;
+                    break;
+                  case 1: 
+                    if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePeer, SENS_TYPE_SWITCH);
+                    if (!ActiveSwitch) ShowMessage("No Switch");
+                    else Mode = S_SWITCH1;
+                    break;
+                  case 2: 
+                    Mode = S_MULTI;
+                    break;
+                  case 3: Mode = S_SETTING;  break;
+                } 
+                break;
+              case SWIPE_LEFT:  Mode = S_PEERS; break;
+              case SWIPE_RIGHT: 
+                if (!ActivePeer) ActivePeer = FindFirstPeer();
+                if (ActivePeer)  Mode = S_PEER; 
+                break;
+              case SWIPE_UP:    break;
+            }
+            break;
+          case S_SENSOR1: 
+            switch (Touch.Gesture) {
+              case CLICK:       
+                ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+                ScreenChanged = true; 
+                break;
+              case SWIPE_LEFT:  
+                ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+                ScreenChanged = true; 
+                break;
+              case SWIPE_RIGHT: 
+                ActiveSens = FindPrevPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+                ScreenChanged = true; 
+                break;
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            }
+            break;
+          case S_SWITCH1: 
+            switch (Touch.Gesture) {
+              case CLICK:       ToggleSwitch(ActivePeer, ActiveSwitch);  break;
+              case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
+              case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            }
+            break;
+          case S_SWITCH4 : 
+            switch (Touch.Gesture) {
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            }
+            break;
+          case S_MULTI    : 
+            switch (Touch.Gesture) {
+              case CLICK:       
+                switch (TouchQuarter()) {
+                  case 0: ToggleSwitch(&P[PeriphMulti[0]->PeerId], PeriphMulti[0]); break;
+                  case 1: ToggleSwitch(&P[PeriphMulti[1]->PeerId], PeriphMulti[1]); break;
+                  case 2: ToggleSwitch(&P[PeriphMulti[2]->PeerId], PeriphMulti[2]); break;
+                  case 3: ToggleSwitch(&P[PeriphMulti[3]->PeerId], PeriphMulti[3]); break;
+                }
+                break;
+              case LONG_PRESS:
+                switch (TouchQuarter()) {
+                  case 0: PeriphToFill = 0; Mode = S_PERI_SEL; break;
+                  case 1: PeriphToFill = 1; Mode = S_PERI_SEL; break;
+                  case 2: PeriphToFill = 2; Mode = S_PERI_SEL; break;
+                  case 3: PeriphToFill = 3; Mode = S_PERI_SEL; break;
+                }
+                break;
+              case SWIPE_LEFT:  if (FirstDisplayedPeriph == 0) FirstDisplayedPeriph = 4
+                                else FirstDisplayedPeriph = 0; 
+                                break;
+              case SWIPE_RIGHT: Mode = S_MENU; break;
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            }
+            break;
+          case S_PERI_SEL: 
+            switch (Touch.Gesture) {
+              case CLICK:       
+                PeriphMulti[PeriphToFill] = ActivePeriph; 
+                ScreenChanged = true;
+                ChangesSaved = false;
+                Mode = S_MULTI;
+              case SWIPE_LEFT:  
+                ActivePeriph = FindNextPeriph(ActivePeer, ActivePeriph, SENS_TYPE_ALL); 
+                ScreenChanged = true; 
+                break;
+              case SWIPE_RIGHT: 
+                ActivePeriph = FindPrevPeriph(ActivePeer, ActivePeriph, SENS_TYPE_ALL); 
+                ScreenChanged = true; 
+                break;
+              case SWIPE_UP:    Mode = S_MULTI; break;
+              case SWIPE_DOWN:  Mode = S_MULTI; break;
+            }
+            break;
+          case S_SETTING:
+            switch (Touch.Gesture) {
+              case CLICK:            if (ButtonHit( 5)) { ESP.restart(); }
+                                else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
+                                else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
+                                else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
+                                else if (ButtonHit(13)) { SavePeriphMulti(); ChangesSaved = true; ScreenChanged = true; }
+                                break;
+              case LONG_PRESS:  if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            } 
+            break;
+          case S_PEER    : 
+            switch (Touch.Gesture) {
+              case CLICK:            if (ButtonHit( 5))   SendCommand(ActivePeer, "Restart");
+                                else if (ButtonHit( 7))   SendCommand(ActivePeer, "Pair");
+                                else if (ButtonHit( 8)) { TSMsgEich = millis(); SendCommand(ActivePeer, "Eichen"); }
+                                else if (ButtonHit( 9)) { Mode = S_CAL_VOL; ShowEichenVolt(); }
+                                else if (ButtonHit(10))   SendCommand(ActivePeer, "SleepMode Toggle");
+                                else if (ButtonHit(11))   SendCommand(ActivePeer, "Debug Toggle");
+                                break;
+              case LONG_PRESS:  if (ButtonHit( 6))        SendCommand(ActivePeer, "Reset");
+              case SWIPE_LEFT:  ActivePeer = FindNextPeer(ActivePeer); ScreenChanged = true; break; 
+              case SWIPE_RIGHT: ActivePeer = FindPrevPeer(ActivePeer); ScreenChanged = true; break; 
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            }
+            break;
+          case S_PEER_SEL   : 
+            switch (Touch.Gesture) {
+              case CLICK:       
+                ActivePeer = ActiveSelection; 
+                if (isBat(ActivePeer)) ActiveBat = ActivePeer;
+                if (isPDC(ActivePeer)) ActivePDC = ActivePeer;
+                ActiveSens = NULL;
+                ActiveSwitch = NULL;
+                Mode = S_MENU; 
+                break;
+              case SWIPE_UP:    ActiveSelection = FindPrevPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
+              case SWIPE_DOWN:  ActiveSelection = FindNextPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
+            }
+            break;
+          case S_PEERS: 
+            switch (Touch.Gesture) {
+              case CLICK:       for (int PNr=0 ; PNr<MAX_PEERS ; PNr++) {
+                                  if (P[PNr].Type) {
+                                    int Abstand = 20;
+                                    if ((Touch.y1>80+PNr*Abstand) and (Touch.y1<80+PNr*(Abstand+1))) {
+                                      struct_Peer *TempPeer = FindPeerById(P[PNr].Id);
+                                      if (TempPeer) {
+                                        ActivePeer = TempPeer;
+                                        Mode = S_PEER;
+                                        ScreenChanged = true;
+                                        break;
+                                      }
                                     }
                                   }
                                 }
-                              }
-                              break;
-            case SWIPE_LEFT:  Mode = S_MENU; break;
-            case SWIPE_RIGHT: Mode = S_MENU; break;
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
-          break;    
-        case S_JSON    :
-          switch (Touch.Gesture) {
-            case CLICK:       Mode = S_MENU; break;
-            case SWIPE_LEFT:  Mode = S_MENU; break;
-            case SWIPE_RIGHT: Mode = S_MENU; break;
-            case SWIPE_UP:    Mode = S_MENU; break;
-            case SWIPE_DOWN:  Mode = S_MENU; break;
-          }
-          break;
-        case S_PAIRING: 
-          switch (Touch.Gesture) {
-            case CLICK: TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
-          }
-          break;
-        case S_CAL_VOL: 
-          switch (Touch.Gesture) {
-            case CLICK: AddVolt(CalcField()); break; 
-            case SWIPE_LEFT:  Mode = S_MENU;  break;
-            case SWIPE_RIGHT: Mode = S_MENU;  break;
-            case SWIPE_UP:    Mode = S_MENU;  break;
-            case SWIPE_DOWN:  Mode = S_MENU;  break;
-          }
-          break;
+                                break;
+              case SWIPE_LEFT:  Mode = S_MENU; break;
+              case SWIPE_RIGHT: Mode = S_MENU; break;
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            }
+            break;    
+          case S_JSON    :
+            switch (Touch.Gesture) {
+              case CLICK:       Mode = S_MENU; break;
+              case SWIPE_LEFT:  Mode = S_MENU; break;
+              case SWIPE_RIGHT: Mode = S_MENU; break;
+              case SWIPE_UP:    Mode = S_MENU; break;
+              case SWIPE_DOWN:  Mode = S_MENU; break;
+            }
+            break;
+          case S_PAIRING: 
+            switch (Touch.Gesture) {
+              case CLICK: TSPair = 0; ReadyToPair = false; Mode = S_MENU; break; 
+            }
+            break;
+          case S_CAL_VOL: 
+            switch (Touch.Gesture) {
+              case CLICK: AddVolt(CalcField()); break; 
+              case SWIPE_LEFT:  Mode = S_MENU;  break;
+              case SWIPE_RIGHT: Mode = S_MENU;  break;
+              case SWIPE_UP:    Mode = S_MENU;  break;
+              case SWIPE_DOWN:  Mode = S_MENU;  break;
+            }
+            break;
+        }
       }
+      TSTouch = millis();
+      ScreenUpdate();  
     }
-  TSTouch = millis();
-  ScreenUpdate();  
-  }
   }
 }
 #pragma region Peer-Things
