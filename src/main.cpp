@@ -46,7 +46,7 @@ void   AddVolt(int i);
 void   SetMsgIndicator();
 void   ScreenUpdate();
 void   PushTFT();
-void   ShowMessage(char *Msg);
+void   ShowMessage(String Msg);
 void   ShowSwitch1();
 void   ShowSwitch4(int Start=0);
 void   ShowSensor1();
@@ -99,7 +99,7 @@ unsigned int rainbow(byte value);
 #pragma region Globals
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
-struct_Button Button[14] = {
+struct_Button Button[15] = {
   { 25, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Volt",      false},   // 0
   { 95, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "Amp",       false},   // 1
   {165, 150, 50, 30, TFT_RUBICON, TFT_BLACK, "JSON",      false},   // 2
@@ -115,7 +115,8 @@ struct_Button Button[14] = {
   {125, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Debug",     false},   // 11
 
   {125,  65, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "JSON",      false},   // 12
-  { 45, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Save",      false}    // 13
+  { 45, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Save",      false},   // 13
+  {125, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Fake",      false}
 };
 
 #define PERIPH_MULTI_SIZE 8
@@ -210,8 +211,9 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               Peer->S[i].Changed = true;
             }
           }
-          if (doc.containsKey("Sleep")) Peer->Sleep = (bool) doc["Sleep"];
-          if (doc.containsKey("Debug")) Peer->Debug = (bool) doc["Debug"];
+          if (doc.containsKey("Sleep")) Peer->Sleep    = (bool) doc["Sleep"];
+          if (doc.containsKey("Debug")) Peer->Debug    = (bool) doc["Debug"];
+          if (doc.containsKey("Fake"))  Peer->FakeMode = (bool) doc["Fake"];
         } 
       }
     } 
@@ -471,7 +473,8 @@ void loop() {
                                   if (P[PNr].Type) {
                                     int Abstand = 20;
                                     if ((Touch.y1>80+PNr*Abstand) and (Touch.y1<80+PNr*(Abstand+1))) {
-                                      struct_Peer *TempPeer = FindPeerById(P[PNr].Id);
+                                      Serial.print("gefundene PNr: "); Serial.println(PNr);
+                                      struct_Peer *TempPeer = &P[PNr];
                                       if (TempPeer) {
                                         ActivePeer = TempPeer;
                                         Mode = S_PEER;
@@ -618,6 +621,8 @@ void GetPeers() {
       sprintf(Buf, "Id-%d", Pi);
       Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
       P[Pi].Id = preferences.getInt(Buf);
+      
+      P[Pi].PNumber = Pi;
 
       // P.BroadcastAdress
       sprintf(Buf, "MAC-%d", Pi);
@@ -1216,6 +1221,8 @@ void ShowPeer() {
     DrawButton(8);
     DrawButton(9);
     DrawButton(10, ActivePeer->Sleep);
+    DrawButton(14, ActivePeer->FakeMode);
+    
 
     TSScreenRefresh = millis();
   }
@@ -1843,8 +1850,8 @@ void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, i
   float YellowAngle = StartAngle + (EndAngle-StartAngle)/Range*StartYellow;
   float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
   
-  sprintf(Buf, "Value:%f, Range:%d, ToGo:%d, StartYellow:%d(%d), StartRed:%d(%d)", Value, Range, (int)ToGo, StartYellow, (int)YellowAngle, StartRed, (int)RedAngle);
-  Serial.println(Buf);
+  //sprintf(Buf, "Value:%f, Range:%d, ToGo:%d, StartYellow:%d(%d), StartRed:%d(%d)", Value, Range, (int)ToGo, StartYellow, (int)YellowAngle, StartRed, (int)RedAngle);
+  //Serial.println(Buf);
 
   TFTBuffer.drawSmoothArc(x, y, R1, R2, ToGo, EndAngle, TFT_DARKGREY, 0x18E3, false);
   if  (ToGo < YellowAngle) TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle, (int)ToGo,        TFT_GREEN,  0x18E3, false);
