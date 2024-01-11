@@ -1,7 +1,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 1.02"
+#define VERSION   "V 1.09"
 
 #pragma region Includes
 #include <Arduino.h>
@@ -21,7 +21,6 @@
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
 
-void   InitModule();
 void   SavePeers();
 void   GetPeers();
 void   SavePeriphMulti();
@@ -195,7 +194,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   DeserializationError error = deserializeJson(doc, jsondata);
 
   if (!error) {
-    struct_Peer *Peer = FindPeerByMAC(mac); //FindPeerByName(doc["Node"]);
+    struct_Peer *Peer = FindPeerByMAC(mac);
     TSMsgRcv = millis();
 
     if (Peer) {
@@ -227,7 +226,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
         
         if (Peer) {
           Peer->Id = FindHighestPeerId()+1;
-          Serial.print("gefundener Slot Id="); Serial.println(Peer->Id);
+          Serial.print("vergebene Id="); Serial.println(Peer->Id);
           for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
           PrintMAC(Peer->BroadcastAddress);
           Serial.println();
@@ -264,18 +263,42 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 void setup() {
   Serial.begin(74880);
 
+  pinMode(TFT_BL, OUTPUT);
+  digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
+
+  TFT.init();
+  TFT.setRotation(Rotation);
+  TFT.setSwapBytes(true);
+
+  TFT.pushImage(0,0, 240, 240, JeepifyLogo); 
+  TFT.loadFont(AA_FONT_SMALL); 
+  TFT.setTextColor(TFT_BLACK, TFT_RED, false);
+  TFT.setTextDatum(MC_DATUM); 
+  TFT.drawString(VERSION, 120,60);
+  TFT.unloadFont();
+
+  TSMsgStart = millis();
+
   WiFi.mode(WIFI_STA);
   if (esp_now_init() != ESP_OK) { Serial.println("Error initializing ESP-NOW"); return; }
 
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);    
 
-  Serial.println("InitModule...");
+  preferences.begin("JeepifyInit", true);
+  Debug     = preferences.getBool("Debug", true);
+  SleepMode = preferences.getBool("SleepMode", false);
+  preferences.end();
 
-    //Workaround
-  //for (int PNr=0; PNr<MAX_PEERS; PNr++) P[PNr].Id = PNr;
+  TouchHW.begin();
 
-  InitModule();  
+  TFTBuffer.createSprite(240,240);
+  TFTBuffer.setSwapBytes(true);
+  
+  TFTGaugeSwitch.createSprite(100,100);
+  TFTGaugeSwitch.setSwapBytes(false);
+  TFTGaugeSwitch.pushImage(0, 0, 100, 100, BtnSmall);
+
   GetPeers();
   RegisterPeers();
   
@@ -490,41 +513,6 @@ void loop() {
   ScreenUpdate();  
   }
   }
-}
-void InitModule() {
-  preferences.begin("JeepifyInit", true);
-  Debug     = preferences.getBool("Debug", true);
-  SleepMode = preferences.getBool("SleepMode", false);
-  preferences.end();
-
-  TouchHW.begin();
-
-  Serial.begin(74880);
-
-  pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, TFT_BACKLIGHT_ON);
-
-  TFT.init();
-  TFT.setRotation(Rotation);
-  TFT.setSwapBytes(true);
-
-  TFT.pushImage(0,0, 240, 240, JeepifyLogo); 
-  TSMsgStart = millis();
-
-  TFTBuffer.createSprite(240,240);
-  TFTBuffer.setSwapBytes(true);
-  
-  TFTGaugeSwitch.createSprite(100,100);
-  TFTGaugeSwitch.setSwapBytes(false);
-  TFTGaugeSwitch.pushImage(0, 0, 100, 100, BtnSmall);
-
-  TFT.loadFont(AA_FONT_SMALL); 
-  TFT.setTextColor(TFT_BLACK, TFT_RED, false);
-  TFT.setTextDatum(MC_DATUM); 
-  TFT.drawString(VERSION, 120,60);
-  TFT.unloadFont();
-  
-  Serial.println("InitModule() fertig...");
 }
 #pragma region Peer-Things
 void SavePeers() {
@@ -764,7 +752,7 @@ void DeletePeer(struct_Peer *Peer) {
       P[PNr].Name[0] = 0;
       P[PNr].Id = 0;
       P[PNr].Type = 0;
-      //P[PNr].BroadcastAddress = {0,0,0,0,0,0};
+      for (int i; i<6; i++) P[PNr].BroadcastAddress[i] = 0;
       P[PNr].TSLastSeen = 0;
       P[PNr].Sleep = false;
       P[PNr].Debug = false;
