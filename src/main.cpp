@@ -575,6 +575,7 @@ void InitModule() {
   
   Serial.println("InitModule() fertig...");
 }
+#pragma region Peer-Things
 void SavePeers() {
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
@@ -830,6 +831,8 @@ void ClearInit() {
     Serial.println("JeepifyInit cleared...");
   preferences.end();
 }
+#pragma endregion Peer-Things
+#pragma region Send-Things
 void SendPing() {
   StaticJsonDocument<500> doc;
   String jsondata;
@@ -855,6 +858,42 @@ void SendPing() {
   //Serial.print(", OldMode="); Serial.println(OldMode);
      
 }
+bool ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph) {
+  if ((!Peer) or (!Periph)) return false;
+  StaticJsonDocument<500> doc;
+  String jsondata;
+  jsondata = "";  //clearing String after data is being sent
+  doc.clear();
+  
+  doc["from"]  = NODE_NAME;   
+  doc["Order"] = "ToggleSwitch";
+  doc["Value"] = Periph->Name;
+  
+  serializeJson(doc, jsondata);  
+  
+  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+  Serial.println(jsondata);
+  
+  jsondata = "";
+  return true;
+}
+void SendCommand(struct_Peer *Peer, String Cmd) {
+  StaticJsonDocument<500> doc;
+  String jsondata;
+  jsondata = "";  //clearing String after data is being sent
+  doc.clear();
+  
+  doc["from"] = NODE_NAME;   
+  doc["Order"] = Cmd;
+  
+  serializeJson(doc, jsondata);  
+  
+  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+  Serial.println(jsondata);
+  
+  jsondata = "";
+}
+#pragma endregion Send-Things
 void DrawButton(int z, bool Selected) {
   TFTBuffer.loadFont(AA_FONT_SMALL); // Must load the font first
   TFTBuffer.setTextDatum(MC_DATUM);
@@ -870,6 +909,7 @@ bool ButtonHit(int b) {
   return ( ((Touch.x1>Button[b].x) and (Touch.x1<Button[b].x+Button[b].w) and 
             (Touch.y1>Button[b].y) and (Touch.y1<Button[b].y+Button[b].h)) );
 }
+#pragma region Sensor-Screens
 void ShowSensor1() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (ActiveSens->Changed)) {
     ScreenChanged = true;   
@@ -937,23 +977,6 @@ void ShowSensor4(int Start) {
     
     TSScreenRefresh = millis(); 
   }
-}
-void ShowMessage(char *Msg) {
-    ScreenChanged = true;             
-    
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.loadFont(AA_FONT_LARGE); 
-
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
-
-    TFTBuffer.drawString(Msg, 120, 120);
-    
-    PushTFT();
-    delay(200);
-    OldMode = S_STATUS;
-    Mode    = S_MENU;
-    ScreenChanged = true;
 }
 void ShowSwitch1() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (ActiveSwitch->Changed)) {
@@ -1081,6 +1104,25 @@ void ShowMulti(int Start) {
     TFTBuffer.unloadFont(); 
   }
   TSScreenRefresh = millis(); 
+}
+#pragma endregion Sensor-Screens
+#pragma region System-Screens
+void ShowMessage(char *Msg) {
+    ScreenChanged = true;             
+    
+    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3);
+    TFTBuffer.setTextDatum(MC_DATUM);
+    TFTBuffer.loadFont(AA_FONT_LARGE); 
+
+    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
+
+    TFTBuffer.drawString(Msg, 120, 120);
+    
+    PushTFT();
+    delay(200);
+    OldMode = S_STATUS;
+    Mode    = S_MENU;
+    ScreenChanged = true;
 }
 void ShowPairing() {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -1231,6 +1273,7 @@ void ShowMenu() {
     TSScreenRefresh = millis();
   }
 }
+#pragma endregion System-Screens
 void PushTFT() {
   SetMsgIndicator();
   if (ScreenChanged) {
@@ -1317,41 +1360,8 @@ void SetDebugMode(bool Mode) {
     if (preferences.getBool("Debug", false) != Debug) preferences.putBool("Debug", Debug);
   preferences.end();
 }
-bool ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph) {
-  if ((!Peer) or (!Periph)) return false;
-  StaticJsonDocument<500> doc;
-  String jsondata;
-  jsondata = "";  //clearing String after data is being sent
-  doc.clear();
-  
-  doc["from"]  = NODE_NAME;   
-  doc["Order"] = "ToggleSwitch";
-  doc["Value"] = Periph->Name;
-  
-  serializeJson(doc, jsondata);  
-  
-  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
-  Serial.println(jsondata);
-  
-  jsondata = "";
-  return true;
-}
-void SendCommand(struct_Peer *Peer, String Cmd) {
-  StaticJsonDocument<500> doc;
-  String jsondata;
-  jsondata = "";  //clearing String after data is being sent
-  doc.clear();
-  
-  doc["from"] = NODE_NAME;   
-  doc["Order"] = Cmd;
-  
-  serializeJson(doc, jsondata);  
-  
-  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
-  Serial.println(jsondata);
-  
-  jsondata = "";
-}
+
+#pragma region Peer/Periph-Checks
 bool isPDC(struct_Peer *Peer) {
   if (Peer) return ((Peer->Type == SWITCH_1_WAY) or (Peer->Type == SWITCH_2_WAY) or 
                     (Peer->Type == SWITCH_4_WAY) or (Peer->Type == SWITCH_8_WAY) or
@@ -1638,6 +1648,9 @@ int          FindHighestPeerId() {
   }
   return HighestId;
 }
+#pragma endregion Peer/Periph-Checks
+
+#pragma region Touch-Things
 int  TouchQuarter(void) {
   if ((Touch.x1<120) and (Touch.y1<120)) return 0;
   if ((Touch.x1>120) and (Touch.y1<120)) return 1;
@@ -1692,6 +1705,8 @@ int  TouchRead() {
 
   return ret;
 }
+#pragma endregion Touch-Things
+#pragma region Gauges
 int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
   int x = 0;
   int y = 0;
@@ -1858,6 +1873,7 @@ void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, i
                            TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)RedAngle,    (int)ToGo,        TFT_RED,    0x18E3, false);
   }         
 }
+#pragma endregion Gauges
 int  CalcField() {
   int Field = 1;
   int z    = 0;
