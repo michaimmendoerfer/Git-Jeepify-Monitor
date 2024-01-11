@@ -120,6 +120,8 @@ struct_Button Button[14] = {
 
 #define PERIPH_MULTI_SIZE 8
 struct_Periph *PeriphMulti[PERIPH_MULTI_SIZE];
+float          TempValue[PERIPH_MULTI_SIZE];
+
 int PeriphToFill;
 
 Preferences preferences;
@@ -143,8 +145,6 @@ int   ButtonGapX = 6;
 int   ButtonGapY = 6;
 float VoltCalib;
 int   VoltCount;
-
-float   TempValue[8] = {0,0,0,0,0,0,0,0};
 
 String jsondataBuf;
 
@@ -1003,47 +1003,47 @@ void ShowMulti(int Start) {
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
     TFTBuffer.loadFont(AA_FONT_SMALL);  
 
-    int Si = Start;
+    int Si=Start;
     for (int Row=0; Row<2; Row++) {
       for (int Col=0; Col<2; Col++) {
-        if (PeriphMulti[Si+Start]) {
+        if (PeriphMulti[Si]) {
           noInterrupts(); 
-            TempValue[Si+Start] = PeriphMulti[Si+Start]->Value;  
+            TempValue[Si] = PeriphMulti[Si]->Value;  
           interrupts();
-          if (isSwitch(PeriphMulti[Si+Start])) {
+          if (isSwitch(PeriphMulti[Si])) {
             TFTBuffer.loadFont(AA_FONT_SMALL); 
             TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-            if (PeriphMulti[Si+Start]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
-            else                                   TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
-            TFTBuffer.drawString(PeriphMulti[Start+Si]->Name, 70+Col*96, 85+Row*90);
+            if (PeriphMulti[Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
+            else                             TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
+            TFTBuffer.drawString(PeriphMulti[Si]->Name, 70+Col*96, 85+Row*90);
             TFTBuffer.unloadFont();
           }
-          else if (isSensorAmp (PeriphMulti[Start+Si])) {
+          else if (isSensorAmp (PeriphMulti[Si])) {
             TempValue[Si+Start] = 25.3;
-            LittleGauge(TempValue[Si+Start], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
+            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
             TFTBuffer.loadFont(AA_FONT_MONO); 
-            dtostrf(TempValue[Si+Start], 0, 1, Buf);
+            dtostrf(TempValue[Si], 0, 1, Buf);
             strcat(Buf, " A");
             TFTBuffer.drawString(Buf, 72+Col*96, 75+Row*90);
             TFTBuffer.unloadFont();
             
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(PeriphMulti[Si+Start]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(PeriphMulti[Si]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
-          else if (isSensorVolt(PeriphMulti[Si+Start])) {
+          else if (isSensorVolt(PeriphMulti[Si])) {
             TempValue[Si] = 13.5;
-            LittleGauge(TempValue[Si+Start], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
+            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
             TFTBuffer.loadFont(AA_FONT_MONO); 
-            dtostrf(TempValue[Si+Start], 0, 1, Buf);
+            dtostrf(TempValue[Si], 0, 1, Buf);
             strcat(Buf, " V");
             TFTBuffer.drawString(Buf, 72+Col*96, 75+Row*90);
             TFTBuffer.unloadFont();
 
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(PeriphMulti[Si+Start]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(PeriphMulti[Si]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
         }  
