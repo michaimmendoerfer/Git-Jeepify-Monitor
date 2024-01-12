@@ -1,7 +1,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 1.09"
+#define VERSION   "V 1.11"
 
 #pragma region Includes
 #include <Arduino.h>
@@ -193,7 +193,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     struct_Peer *Peer = FindPeerByMAC(mac);
     TSMsgRcv = millis();
 
-    if (Peer) {
+    if (Peer) { // Peer bekannt 
       Peer->TSLastSeen = millis();
       Serial.print("bekannter Node: "); Serial.print(Peer->Name); Serial.print(" - "); Serial.println(Peer->TSLastSeen);
       
@@ -211,13 +211,17 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               Peer->S[i].Changed = true;
             }
           }
-          if (doc.containsKey("Sleep")) Peer->Sleep    = (bool) doc["Sleep"];
-          if (doc.containsKey("Debug")) Peer->Debug    = (bool) doc["Debug"];
-          if (doc.containsKey("Fake"))  Peer->FakeMode = (bool) doc["Fake"];
+          if (doc.containsKey("Status")) {
+            int Status = doc["Status"];
+            Peer->Debug       = (bool) bitRead(Status, 0);
+            Peer->Sleep       = (bool) bitRead(Status, 1);
+            Peer->DemoMode    = (bool) bitRead(Status, 2);
+            Peer->ReadyToPair = (bool) bitRead(Status, 3);
+          } 
         } 
       }
     } 
-    else {
+    else {      // Peer unbekannt 
       if ((doc["Pairing"] == "add me") and (ReadyToPair)) { // neuen Peer registrieren
         Peer = FindEmptyPeer();
         
@@ -255,7 +259,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
       }
     }
   }
-  else {                                            // Error
+  else {        // Error
     Serial.print(F("deserializeJson() failed: "));  //Just in case of an ERROR of ArduinoJSon
     Serial.println(error.f_str());
     return;
@@ -1222,8 +1226,7 @@ void ShowPeer() {
     DrawButton(8);
     DrawButton(9);
     DrawButton(10, ActivePeer->Sleep);
-    DrawButton(14, ActivePeer->FakeMode);
-    
+    DrawButton(14, ActivePeer->DemoMode);
 
     TSScreenRefresh = millis();
   }
