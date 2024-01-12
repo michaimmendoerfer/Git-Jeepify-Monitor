@@ -116,7 +116,7 @@ struct_Button Button[15] = {
 
   {125,  65, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "JSON",      false},   // 12
   { 45, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Save",      false},   // 13
-  {125, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Fake",      false}
+  {125, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Demo",      false}    // 14
 };
 
 #define PERIPH_MULTI_SIZE 8
@@ -449,7 +449,7 @@ void loop() {
                                 else if (ButtonHit( 9)) { Mode = S_CAL_VOL; ShowEichenVolt(); }
                                 else if (ButtonHit(10))   SendCommand(ActivePeer, "SleepMode Toggle");
                                 else if (ButtonHit(11))   SendCommand(ActivePeer, "Debug Toggle");
-                                else if (ButtonHit(14))   SendCommand(ActivePeer, "Fake Toggle");
+                                else if (ButtonHit(14))   SendCommand(ActivePeer, "DemoMode Toggle");
                                 break;
               case LONG_PRESS:  if (ButtonHit( 6))        SendCommand(ActivePeer, "Reset");
               case SWIPE_LEFT:  ActivePeer = FindNextPeer(ActivePeer); ScreenChanged = true; break; 
@@ -1102,7 +1102,6 @@ void ScreenUpdate() {
       case S_SWITCH1:   ShowSwitch1();  break;
       case S_SWITCH4:   ShowSwitch4();  break;
       case S_MULTI:     ShowMulti(0);   break;
-      
       case S_JSON:      ShowJSON();     break;  
       case S_SETTING:   ShowSettings(); break;
       case S_PEER:      ShowPeer();     break;
