@@ -97,6 +97,13 @@ float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
 #pragma endregion Function_Definitions
 #pragma region Globals
+struct struct_MultiScreen {
+  int Id;
+  struct_Periph *S[4];
+};
+
+struct_MultiScreen *Screen[4];
+
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
 struct_Button Button[15] = {
@@ -116,13 +123,15 @@ struct_Button Button[15] = {
 
   {125,  65, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "JSON",      false},   // 12
   { 45, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Save",      false},   // 13
-  {125, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Demo",      false}    // 14
+  { 45, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Demo",      false}    // 14
 };
 
-#define PERIPH_MULTI_SIZE 8
-struct_Periph *PeriphMulti[PERIPH_MULTI_SIZE];
-float          TempValue[PERIPH_MULTI_SIZE];
-int FirstDisplayedPeriph, FirstDisplayedSwitch, FirstDisplayedSensor;
+#define PERIPH_MULTI_SCREENS 4
+#define PERIPH_PER_SCREEN 4
+struct_Periph *PeriphMulti[PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN];
+float          TempValue  [PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN];
+//int FirstDisplayedPeriph, FirstDisplayedSwitch, FirstDisplayedSensor;
+int ActivePeriphMultiScreen = 0; 
 int PeriphToFill;
 
 Preferences preferences;
@@ -136,7 +145,7 @@ int OldMode      = 99;
 int UpdateCount  =  0;
 
 bool ScreenChanged = true;
-bool Debug = true;
+bool DebugMode = true;
 bool SleepMode = false;
 bool ReadyToPair = false;
 bool ChangesSaved = true;
@@ -176,14 +185,10 @@ CST816D TouchHW(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   char* buff = (char*) incomingData;   
-  StaticJsonDocument<500> doc;
-  String jsondata;
+  StaticJsonDocument<500> doc; 
+  String jsondata = String(buff); 
   
-  jsondata = "";  jsondata = String(buff); 
-  jsondataBuf = String(buff); 
-
-  String BufS;
-  char Buf[10] = {};
+  String BufS; char Buf[10] = {};
   
   Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(); Serial.println(jsondata);
   
@@ -213,8 +218,8 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           }
           if (doc.containsKey("Status")) {
             int Status = doc["Status"];
-            Peer->Debug       = (bool) bitRead(Status, 0);
-            Peer->Sleep       = (bool) bitRead(Status, 1);
+            Peer->DebugMode   = (bool) bitRead(Status, 0);
+            Peer->SleepMode   = (bool) bitRead(Status, 1);
             Peer->DemoMode    = (bool) bitRead(Status, 2);
             Peer->ReadyToPair = (bool) bitRead(Status, 3);
           } 
@@ -245,7 +250,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               Peer->S[Si].Type = doc[Buf];
               sprintf(Buf, "N%d", Si);      // Name0
               strcpy(Peer->S[Si].Name, doc[Buf]);
-              Peer->S[Si].Id = Si;
+              Peer->S[Si].Id = Si+1; //0 oder 1? 
               Peer->S[Si].PeerId = Peer->Id;
             }
           }   
@@ -260,7 +265,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
     }
   }
   else {        // Error
-    Serial.print(F("deserializeJson() failed: "));  //Just in case of an ERROR of ArduinoJSon
+    Serial.print(F("deserializeJson() failed: ")); 
     Serial.println(error.f_str());
     return;
   }
@@ -291,7 +296,7 @@ void setup() {
   esp_now_register_recv_cb(OnDataRecv);    
 
   preferences.begin("JeepifyInit", true);
-  Debug     = preferences.getBool("Debug", true);
+  DebugMode = preferences.getBool("DebugMode", true);
   SleepMode = preferences.getBool("SleepMode", false);
   preferences.end();
 
@@ -315,7 +320,6 @@ void setup() {
   TSTouch         = millis();
 }
 void loop() {
-  if ((TSMsgStart) and (millis() - TSMsgStart > LOGO_INTERVAL)) { Mode = S_MENU; TSMsgStart = 0; }
   if (!TSMsgStart) {
     if (millis() - TSPing     > PING_INTERVAL)  { TSPing = millis(); SendPing(); }
     if (millis() - TSTouch    > TOUCH_INTERVAL) {
@@ -385,26 +389,37 @@ void loop() {
             break;
           case S_MULTI    : 
             switch (Touch.Gesture) {
-              case CLICK:       
+              int Pos;
+               case CLICK:       
                 switch (TouchQuarter()) {
-                  case 0: ToggleSwitch(&P[PeriphMulti[0]->PeerId], PeriphMulti[0]); break;
-                  case 1: ToggleSwitch(&P[PeriphMulti[1]->PeerId], PeriphMulti[1]); break;
-                  case 2: ToggleSwitch(&P[PeriphMulti[2]->PeerId], PeriphMulti[2]); break;
-                  case 3: ToggleSwitch(&P[PeriphMulti[3]->PeerId], PeriphMulti[3]); break;
+                  case 0: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 0; break;
+                  case 1: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 1; break;
+                  case 2: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 2; break;
+                  case 3: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 3; break;
+                }
+                if (isSwitch(PeriphMulti[Pos])) { 
+                  ToggleSwitch(FindPeerById(PeriphMulti[Pos]->PeerId), PeriphMulti[Pos]); 
+                }
+                else if (isSensor(PeriphMulti[Pos])) {
+                  ActivePeer   = FindPeerById(PeriphMulti[Pos]->PeerId);
+                  ActivePeriph = PeriphMulti[Pos];
+                  Mode = S_SENSOR1;
                 }
                 break;
               case LONG_PRESS:
                 switch (TouchQuarter()) {
-                  case 0: PeriphToFill = 0; Mode = S_PERI_SEL; break;
-                  case 1: PeriphToFill = 1; Mode = S_PERI_SEL; break;
-                  case 2: PeriphToFill = 2; Mode = S_PERI_SEL; break;
-                  case 3: PeriphToFill = 3; Mode = S_PERI_SEL; break;
+                  case 0: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 0; Mode = S_PERI_SEL; break;
+                  case 1: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 1; Mode = S_PERI_SEL; break;
+                  case 2: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 2; Mode = S_PERI_SEL; break;
+                  case 3: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 3; Mode = S_PERI_SEL; break;
                 }
                 break;
-              case SWIPE_LEFT:  if (FirstDisplayedPeriph == 0) FirstDisplayedPeriph = 4;
-                                else FirstDisplayedPeriph = 0; 
+              case SWIPE_LEFT:  if  (ActivePeriphMultiScreen < PERIPH_MULTI_SCREENS-1) ActivePeriphMultiScreen++;
+                                else ActivePeriphMultiScreen = 0; 
                                 break;
-              case SWIPE_RIGHT: Mode = S_MENU; break;
+              case SWIPE_RIGHT: if  (ActivePeriphMultiScreen == 0) ActivePeriphMultiScreen = PERIPH_MULTI_SCREENS-1;
+                                else ActivePeriphMultiScreen--; 
+                                break;
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
             }
@@ -432,7 +447,7 @@ void loop() {
             switch (Touch.Gesture) {
               case CLICK:            if (ButtonHit( 5)) { ESP.restart(); }
                                 else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
-                                else if (ButtonHit(11)) { if (Debug) SetDebugMode(false); else SetDebugMode(true); }
+                                else if (ButtonHit(11)) { if (DebugMode) SetDebugMode(false); else SetDebugMode(true); }
                                 else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
                                 else if (ButtonHit(13)) { SavePeriphMulti(); ChangesSaved = true; ScreenChanged = true; }
                                 break;
@@ -448,7 +463,7 @@ void loop() {
                                 else if (ButtonHit( 8)) { TSMsgEich = millis(); SendCommand(ActivePeer, "Eichen"); }
                                 else if (ButtonHit( 9)) { Mode = S_CAL_VOL; ShowEichenVolt(); }
                                 else if (ButtonHit(10))   SendCommand(ActivePeer, "SleepMode Toggle");
-                                else if (ButtonHit(11))   SendCommand(ActivePeer, "Debug Toggle");
+                                else if (ButtonHit(11))   SendCommand(ActivePeer, "DebugMode Toggle");
                                 else if (ButtonHit(14))   SendCommand(ActivePeer, "DemoMode Toggle");
                                 break;
               case LONG_PRESS:  if (ButtonHit( 6))        SendCommand(ActivePeer, "Reset");
@@ -525,7 +540,9 @@ void loop() {
       ScreenUpdate();  
     }
   }
+  else if (millis() - TSMsgStart > LOGO_INTERVAL) { Mode = S_MENU; TSMsgStart = 0; }
 }
+
 #pragma region Peer-Things
 void SavePeers() {
   Serial.println("SavePeers...");
@@ -586,20 +603,20 @@ void SavePeriphMulti() {
   Serial.println("Save PeriphMulti...");
   preferences.begin("JeepifyPeers", false);
   
-  uint8_t TempPeriphMultiSaver[PERIPH_MULTI_SIZE*2]; // peer.id, s.id, peer.id...
+  int TempPeriphMultiSaver[PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2]; // peer.id, s.id, peer.id...
   int i=0;
-  for (int SNr=0; SNr<PERIPH_MULTI_SIZE; SNr++) {
+  for (int SNr=0; SNr<PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2; SNr++) {
     if (PeriphMulti[SNr]) {
       TempPeriphMultiSaver[i]   = PeriphMulti[SNr]->PeerId;
       TempPeriphMultiSaver[i+1] = PeriphMulti[SNr]->Id;
     }
     else {
-      TempPeriphMultiSaver[i]   = 99;
-      TempPeriphMultiSaver[i+1] = 99;
+      TempPeriphMultiSaver[i]   = 0;
+      TempPeriphMultiSaver[i+1] = 0;
     } 
     i+=2;
   }
-  preferences.putBytes("PeriphMulti", TempPeriphMultiSaver, PERIPH_MULTI_SIZE*2);
+  preferences.putBytes("PeriphMulti", TempPeriphMultiSaver, sizeof(TempPeriphMultiSaver));
 
   preferences.end();
 }
@@ -665,7 +682,7 @@ void GetPeers() {
       }
       P[Pi].TSLastSeen = millis();
       
-      if (Debug) {
+      if (DebugMode) {
         Serial.print(Pi); Serial.print(": Type="); Serial.print(P[Pi].Type); 
         Serial.print(", Name="); Serial.print(P[Pi].Name);
         Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
@@ -686,11 +703,11 @@ void GetPeers() {
 void GetPeriphMulti() {
   preferences.begin("JeepifyPeers", true);
   
-  uint8_t TempPeriphMultiSaver[PERIPH_MULTI_SIZE*2]; // peer.id, s.id, peer.id...
-  preferences.getBytes("PeriphMulti", TempPeriphMultiSaver, PERIPH_MULTI_SIZE*2);
+  int TempPeriphMultiSaver[PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2]; // peer.id, s.id, peer.id...
+  preferences.getBytes("PeriphMulti", TempPeriphMultiSaver, sizeof(TempPeriphMultiSaver));
 
   int i=0;
-  for (int SNr=0; SNr<PERIPH_MULTI_SIZE; SNr++) {
+  for (int SNr=0; SNr<PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2; SNr++) {
     struct_Peer *TempPeer = FindPeerById(TempPeriphMultiSaver[i]);
     if (TempPeer) {
       PeriphMulti[SNr] = FindPeriphById(TempPeer, TempPeriphMultiSaver[i+1]);
@@ -709,7 +726,7 @@ void ReportPeers() {
   TFT.println();
 
   for (int Pi=0; Pi<MAX_PEERS; Pi++) {
-    if (Debug) {
+    if (DebugMode) {
       Serial.println(P[Pi].Name);
       Serial.println(P[Pi].Type);
       Serial.print("MAC: "); PrintMAC(P[Pi].BroadcastAddress);
@@ -768,8 +785,8 @@ void DeletePeer(struct_Peer *Peer) {
       P[PNr].Type = 0;
       for (int i; i<6; i++) P[PNr].BroadcastAddress[i] = 0;
       P[PNr].TSLastSeen = 0;
-      P[PNr].Sleep = false;
-      P[PNr].Debug = false;
+      P[PNr].SleepMode = false;
+      P[PNr].DebugMode = false;
     }
   }
   SendCommand(Peer, "Reset");
@@ -1199,7 +1216,7 @@ void ShowSettings() {
     DrawButton(5);
     DrawButton(6);
     DrawButton(7,  ReadyToPair);
-    DrawButton(11, Debug);
+    DrawButton(11, DebugMode);
     DrawButton(12);
     DrawButton(13, !ChangesSaved);
 
@@ -1224,7 +1241,7 @@ void ShowPeer() {
     DrawButton(7);
     DrawButton(8);
     DrawButton(9);
-    DrawButton(10, ActivePeer->Sleep);
+    DrawButton(10, ActivePeer->SleepMode);
     DrawButton(14, ActivePeer->DemoMode);
 
     TSScreenRefresh = millis();
@@ -1290,7 +1307,7 @@ void PushTFT() {
   }
 }
 void SetMsgIndicator() {
-  if (Debug) {
+  if (DebugMode) {
     if (TSMsgVolt) {
         if (millis() - TSMsgVolt > MSGLIGHT_INTERVAL) {
           TSMsgVolt = 0;
@@ -1738,7 +1755,7 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
     TFTBuffer.setTextDatum(MC_DATUM);
     
-    if (Debug) TFTBuffer.drawString(ActivePeer->Name, 120,225);
+    if (DebugMode) TFTBuffer.drawString(ActivePeer->Name, 120,225);
 
     TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
     TFTBuffer.setTextDatum(TC_DATUM);
@@ -1877,8 +1894,8 @@ void SetSleepMode(bool Mode) {
 }
 void SetDebugMode(bool Mode) {
   preferences.begin("JeepifyInit", false);
-    Debug = Mode;
-    if (preferences.getBool("Debug", false) != Debug) preferences.putBool("Debug", Debug);
+    DebugMode = Mode;
+    if (preferences.getBool("DebugMode", false) != DebugMode) preferences.putBool("DebugMode", DebugMode);
   preferences.end();
 }
 void DrawButton(int z, bool Selected) {
