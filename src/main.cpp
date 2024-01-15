@@ -97,14 +97,20 @@ float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
 #pragma endregion Function_Definitions
 #pragma region Globals
-struct struct_MultiScreen {
-  int Id;
-  char Name[20];
-  struct_Periph *S[4];
-};
+#define MULTI_SCREENS 20 // 0-9 Peers, 10-10 Multi
+#define PERIPH_PER_SCREEN 4
 
-struct_MultiScreen Screen[4];
-struct_MultiScreen TempScreen;
+struct struct_MultiScreen {
+  int  Id;
+  int  PeerId; // nicht für Multi, nur für 0-9
+  int  PeriphId[PERIPH_PER_SCREEN];
+  struct_Peer *Peer;
+  struct_Periph *S[PERIPH_PER_SCREEN];
+  char Name[20];
+};
+struct_MultiScreen Screen[MULTI_SCREENS];
+int ActiveMultiScreen = 0; 
+int PeriphToFill;
 
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
@@ -127,14 +133,6 @@ struct_Button Button[15] = {
   { 45, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Save",      false},   // 13
   { 45, 155, 70, 30, TFT_LIGHTGREY, TFT_BLACK, "Demo",      false}    // 14
 };
-
-#define PERIPH_MULTI_SCREENS 4
-#define PERIPH_PER_SCREEN 4
-struct_Periph *PeriphMulti[PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN];
-float          TempValue  [PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN];
-//int FirstDisplayedPeriph, FirstDisplayedSwitch, FirstDisplayedSensor;
-int ActivePeriphMultiScreen = 0; 
-int PeriphToFill;
 
 Preferences preferences;
 
@@ -260,6 +258,18 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           RegisterPeers();
           
           SendPairingConfirm(Peer);
+          
+          for (int s=0; s<MAX_PEERS; s++) {
+            if (!Screen[s].PeerId) {
+              strcpy(Screen[s].Name, doc["Node"]); 
+              Screen[s].PeerId = Peer->Id;
+              Screen[s].Peer = Peer;
+              for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+                 Screen[s].PeriphId[SNr] = Peer->S[Si].Id;
+                 Screen[s].S[SNr] = &Peer->S[SNr];
+              }
+            }
+          }
 
           ReadyToPair = false; TSPair = 0; Mode = S_MENU;
         }
@@ -316,6 +326,8 @@ void setup() {
   
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
   
+  for (int s=0; s<MULTI_SCREENS; s++) Screen[s].Id = s;
+
   Mode = S_MENU;
 
   TSScreenRefresh = millis();
@@ -383,28 +395,18 @@ void loop() {
               case SWIPE_DOWN:  Mode = S_MENU; break;
             }
             break;
-          case S_SWITCH4 : 
-            switch (Touch.Gesture) {
-              case SWIPE_UP:    Mode = S_MENU; break;
-              case SWIPE_DOWN:  Mode = S_MENU; break;
-            }
-            break;
           case S_MULTI    : 
             switch (Touch.Gesture) {
-              int Pos;
                case CLICK:       
-                switch (TouchQuarter()) {
-                  case 0: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 0; break;
-                  case 1: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 1; break;
-                  case 2: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 2; break;
-                  case 3: Pos = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 3; break;
+                struct_Periph *Periph;
+                Periph = Screen[ActiveMultiScreen].S[TouchQuarter()]; break;
+                  
+                if (isSwitch(Periph)) { 
+                  ToggleSwitch(FindPeerById(Periph->PeerId), Periph); 
                 }
-                if (isSwitch(PeriphMulti[Pos])) { 
-                  ToggleSwitch(FindPeerById(PeriphMulti[Pos]->PeerId), PeriphMulti[Pos]); 
-                }
-                else if (isSensor(PeriphMulti[Pos])) {
-                  ActivePeer   = FindPeerById(PeriphMulti[Pos]->PeerId);
-                  ActivePeriph = PeriphMulti[Pos];
+                else if (isSensor(Periph) {
+                  ActivePeer   = FindPeerById(Periph->PeerId);
+                  ActivePeriph = Periph;
                   Mode = S_SENSOR1;
                 }
                 break;
@@ -549,6 +551,7 @@ void loop() {
 void SavePeers() {
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
+  
   char Buf[50] = {}; String BufS;
 
   PeerCount = 0;
@@ -598,27 +601,6 @@ void SavePeers() {
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
   
   SavePeriphMulti();
-
-  preferences.end();
-}
-void SavePeriphMulti() {
-  Serial.println("Save PeriphMulti...");
-  preferences.begin("JeepifyPeers", false);
-  
-  int TempPeriphMultiSaver[PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2]; // peer.id, s.id, peer.id...
-  int i=0;
-  for (int SNr=0; SNr<PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2; SNr++) {
-    if (PeriphMulti[SNr]) {
-      TempPeriphMultiSaver[i]   = PeriphMulti[SNr]->PeerId;
-      TempPeriphMultiSaver[i+1] = PeriphMulti[SNr]->Id;
-    }
-    else {
-      TempPeriphMultiSaver[i]   = 0;
-      TempPeriphMultiSaver[i+1] = 0;
-    } 
-    i+=2;
-  }
-  preferences.putBytes("PeriphMulti", TempPeriphMultiSaver, sizeof(TempPeriphMultiSaver));
 
   preferences.end();
 }
@@ -702,21 +684,54 @@ void GetPeers() {
 
   preferences.end();
 }
+void SavePeriphMulti() {
+  char Buf[30];
+  
+  Serial.println("Save PeriphMulti...");
+  preferences.begin("JeepifyPeers", false);
+  
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    if (Screen[s].PeerId) {
+      sprintf(Buf, "S%d-Name", s);
+      if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
+      sprintf(Buf, "S%d-Id", s);
+      if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);
+      sprintf(Buf, "S%d-PeerId", s);
+      if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId);
+      
+      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+        sprintf(Buf, "S%d-PeriphId%d", s, p);
+        if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
+      }
+    }  
+  }
+  preferences.end();
+}
 void GetPeriphMulti() {
+  char Buf[30]; String BufS;
+
   preferences.begin("JeepifyPeers", true);
   
-  int TempPeriphMultiSaver[PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2]; // peer.id, s.id, peer.id...
-  preferences.getBytes("PeriphMulti", TempPeriphMultiSaver, sizeof(TempPeriphMultiSaver));
-
-  int i=0;
-  for (int SNr=0; SNr<PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN * 2; SNr++) {
-    struct_Peer *TempPeer = FindPeerById(TempPeriphMultiSaver[i]);
-    if (TempPeer) {
-      PeriphMulti[SNr] = FindPeriphById(TempPeer, TempPeriphMultiSaver[i+1]);
-    } 
-    i+=2;
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    sprintf(Buf, "S%d-Name", s);
+    if (preferences.getString(Buf,"") != "") {
+      BufS = preferences.getString(Buf);
+      strcpy(Screen[s].Name, BufS.c_str());
+      
+      sprintf(Buf, "S%d-Id", s);
+      Screen[s].Id = preferences.getInt(Buf,0);
+      
+      sprintf(Buf, "S%d-PeerId", s);
+      Screen[s].PeerId = preferences.getInt(Buf,0);
+      Screen[s].Peer = FindPeerById(Screen[s].PeerId);
+      
+      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+        sprintf(Buf, "S%d-PeriphId%d", s, p);
+        Screen[s].PeriphId[p] = preferences.getInt(Buf,0);
+        Screen[s].S[p] = FindPeriphById(Screen[s].Peer, Screen[s].PeriphId[p]);
+      }
+    }  
   }
-
   preferences.end();
 }
 void ReportPeers() {
@@ -919,7 +934,8 @@ void ShowSingle(struct_Peer *Peer, struct_Periph *Periph) {
 }
 void ShowMulti(struct_MultiScreen *Screen) {
   char Buf[20];
-  
+  float TempValue[PERIPH_PER_SCREEN];
+
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;     
     OldMode = Mode;        
@@ -936,7 +952,7 @@ void ShowMulti(struct_MultiScreen *Screen) {
           noInterrupts(); 
             TempValue[Si] = Screen->S[Si]->Value;  
           interrupts();
-          if (isSwitch(Screen->S[Si]) {
+          if (isSwitch(Screen->S[Si])) {
             TFTBuffer.loadFont(AA_FONT_SMALL); 
             TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
             if (Screen->S[Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
@@ -1016,10 +1032,10 @@ void ScreenUpdate() {
     switch (Mode) {
       case S_PAIRING:   ShowPairing();  break;
       case S_SENSOR1:   ShowSingle(ActivePeer, ActiveSens);  break;          
-      case S_SENSOR4:   ShowSensor4();  break;  
+      case S_SENSOR4:   ShowMulti(ActiveMultiScreen);  break;  
       case S_SWITCH1:   ShowSingle(ActivePeer, ActiveSwitch);  break;   
-      case S_SWITCH4:   ShowSwitch4();  break;
-      case S_MULTI:     ShowMulti(0);   break;
+      case S_SWITCH4:   ShowMulti(ActiveMultiScreen);  break; 
+      case S_MULTI:     ShowMulti(9);   break;
       case S_JSON:      ShowJSON();     break;  
       case S_SETTING:   ShowSettings(); break;
       case S_PEER:      ShowPeer();     break;
