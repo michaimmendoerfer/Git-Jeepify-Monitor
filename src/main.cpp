@@ -265,7 +265,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               Screen[s].PeerId = Peer->Id;
               Screen[s].Peer = Peer;
               for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
-                 Screen[s].PeriphId[SNr] = Peer->S[Si].Id;
+                 Screen[s].PeriphId[SNr] = Peer->S[SNr].Id;
                  Screen[s].S[SNr] = &Peer->S[SNr];
               }
             }
@@ -404,25 +404,21 @@ void loop() {
                 if (isSwitch(Periph)) { 
                   ToggleSwitch(FindPeerById(Periph->PeerId), Periph); 
                 }
-                else if (isSensor(Periph) {
+                else if (isSensor(Periph)) {
                   ActivePeer   = FindPeerById(Periph->PeerId);
                   ActivePeriph = Periph;
                   Mode = S_SENSOR1;
                 }
                 break;
               case LONG_PRESS:
-                switch (TouchQuarter()) {
-                  case 0: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 0; Mode = S_PERI_SEL; break;
-                  case 1: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 1; Mode = S_PERI_SEL; break;
-                  case 2: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 2; Mode = S_PERI_SEL; break;
-                  case 3: PeriphToFill = ActivePeriphMultiScreen * PERIPH_PER_SCREEN + 3; Mode = S_PERI_SEL; break;
-                }
+                PeriphToFill = TouchQuarter();
+                Mode = S_PERI_SEL;
                 break;
-              case SWIPE_LEFT:  if  (ActivePeriphMultiScreen < PERIPH_MULTI_SCREENS-1) ActivePeriphMultiScreen++;
-                                else ActivePeriphMultiScreen = 0; 
+              case SWIPE_LEFT:  if  (ActiveMultiScreen < MULTI_SCREENS-1) ActiveMultiScreen++;
+                                else ActiveMultiScreen = 0; 
                                 break;
-              case SWIPE_RIGHT: if  (ActivePeriphMultiScreen == 0) ActivePeriphMultiScreen = PERIPH_MULTI_SCREENS-1;
-                                else ActivePeriphMultiScreen--; 
+              case SWIPE_RIGHT: if  (ActiveMultiScreen == 0) ActiveMultiScreen = MULTI_SCREENS-1;
+                                else ActiveMultiScreen--; 
                                 break;
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
@@ -431,7 +427,8 @@ void loop() {
           case S_PERI_SEL: 
             switch (Touch.Gesture) {
               case CLICK:       
-                PeriphMulti[PeriphToFill] = ActivePeriph; 
+                Screen[ActiveMultiScreen].PeriphId[PeriphToFill] = ActivePeriph->Id;
+                Screen[ActiveMultiScreen].S[PeriphToFill] = ActivePeriph;
                 ScreenChanged = true;
                 ChangesSaved = false;
                 Mode = S_MULTI;
