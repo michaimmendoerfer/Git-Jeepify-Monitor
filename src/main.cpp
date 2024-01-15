@@ -805,8 +805,14 @@ void DeletePeer(struct_Peer *Peer) {
   }
   SendCommand(Peer, "Reset");
   
-  for (int Si=0; Si<PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN; Si++) {
-    if (PeriphMulti[Si]->PeerId == Peer->Id) PeriphMulti[Si] = NULL;
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+      if (Screen[s].S[p]->PeerId == Peer->Id) {
+        Screen[s].S[p] = NULL;
+        Screen[s].PeriphId[p] = 0;
+      }
+    } 
+    if (Screen[s].PeerId == Peer->Id) Screen[s].PeerId = 0;
   }
 }
 void ClearInit() {
