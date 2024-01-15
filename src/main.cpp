@@ -99,10 +99,12 @@ unsigned int rainbow(byte value);
 #pragma region Globals
 struct struct_MultiScreen {
   int Id;
+  char Name[20];
   struct_Periph *S[4];
 };
 
-struct_MultiScreen *Screen[4];
+struct_MultiScreen Screen[4];
+struct_MultiScreen TempScreen;
 
 struct_Touch  Touch;
 struct_Peer   P[MAX_PEERS];
@@ -791,7 +793,7 @@ void DeletePeer(struct_Peer *Peer) {
   }
   SendCommand(Peer, "Reset");
   
-  for (int Si=0; Si<PERIPH_MULTI_SIZE; Si++) {
+  for (int Si=0; Si<PERIPH_MULTI_SCREENS * PERIPH_PER_SCREEN; Si++) {
     if (PeriphMulti[Si]->PeerId == Peer->Id) PeriphMulti[Si] = NULL;
   }
 }
@@ -888,8 +890,8 @@ void SendCommand(struct_Peer *Peer, String Cmd) {
 }
 #pragma endregion Send-Things
 #pragma region Sensor-Screens
-void ShowSensor1() {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (ActiveSens->Changed)) {
+void ShowSingle(struct_Peer *Peer, struct_Periph *Periph) {
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (Periph->Changed)) {
     ScreenChanged = true;   
     OldMode = Mode;          
 
@@ -897,126 +899,25 @@ void ShowSensor1() {
     TFTBuffer.setTextDatum(MC_DATUM);
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);       
       
-    switch(ActiveSens->Type) {
-      case SENS_TYPE_AMP:  RingMeter(0, 30, "Amp",  GREEN2RED); break;
-      case SENS_TYPE_VOLT: RingMeter(0, 15, "Volt", GREEN2RED); break;
-      default:             ShowMessage("No Sensor"); break;
+    switch(Periph->Type) {
+      case SENS_TYPE_AMP:    RingMeter(0, 30, "Amp",  GREEN2RED); break;
+      case SENS_TYPE_VOLT:   RingMeter(0, 15, "Volt", GREEN2RED); break;
+      case SENS_TYPE_SWITCH: TFTBuffer.pushImage(0,0, 240, 240, Btn);
+                             TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name, 120,130); TFTBuffer.unloadFont(); 
+                             TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(Peer->Name,   120,160); TFTBuffer.unloadFont();
+                             if (Periph->Value == 1)      TFTBuffer.pushImage(107,70,27,10,BtnOn);
+                             else if (Periph->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
+                             break;
+      default:               ShowMessage("No input"); break;
     }
     
     TSScreenRefresh = millis();
+    noInterrupts(); 
+      Periph->Changed = false;  
+    interrupts();
   } 
 }
-void ShowSensor4(int Start) {
-  FirstDisplayedSensor = Start;
-  
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (PeriphChanged(ActivePeer, Start,Start+3))) {
-    ScreenChanged = true;  
-    OldMode = Mode;           
-
-    noInterrupts(); 
-      for (int Si=0; Si<4; Si++) TempValue[Si] = ActivePeer->S[Si].Value;  
-    interrupts();
-
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);  
-
-    char Buf[20];
-    int Si = 0;
-    for (int Row=0; Row<2; Row++) {
-      for (int Col=0; Col<2; Col++) {
-        if (isSensorAmp (&ActivePeer->S[Si])) {
-          TFTBuffer.loadFont(AA_FONT_LARGE); 
-          TFTBuffer.drawString(ActivePeer->S[Si].Name,  60+Col*120, 30+Row*120);
-          //Format Output
-          dtostrf(TempValue[Si], 0, 2, Buf);
-          TFTBuffer.drawString(Buf, 60+Col*120, 90+Row*120);
-          TFTBuffer.unloadFont();
-        }
-        if (isSensorVolt(&ActivePeer->S[Si])) {
-          TFTBuffer.loadFont(AA_FONT_LARGE); 
-          TFTBuffer.drawString(ActivePeer->S[Si].Name,  60+Col*120, 30+Row*120);
-          //Format Output
-          dtostrf(TempValue[Si], 0, 2, Buf);
-          TFTBuffer.drawString(Buf, 60+Col*120, 90+Row*120);
-          TFTBuffer.unloadFont();
-        }
-        Si++;
-      }
-    }
-    TFTBuffer.loadFont(AA_FONT_SMALL); 
-    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-    TFTBuffer.drawString(ActivePeer->Name, 120,15);
-    TFTBuffer.unloadFont(); 
-    
-    noInterrupts(); 
-      for (int Si=0; Si<4; Si++) ActivePeer->S[Si].Changed = false;
-    interrupts();
-    
-    TSScreenRefresh = millis(); 
-  }
-}
-void ShowSwitch1() {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (ActiveSwitch->Changed)) {
-    ScreenChanged = true;
-    OldMode = Mode;
-
-    TFTBuffer.pushImage(0,0, 240, 240, Btn);
-    TFTBuffer.loadFont(AA_FONT_LARGE); 
-
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    
-    TFTBuffer.drawString(ActiveSwitch->Name, 120,130);
-
-    TFTBuffer.unloadFont(); 
-
-    TFTBuffer.loadFont(AA_FONT_SMALL);
-    TFTBuffer.drawString(ActivePeer->Name, 120,160);
-    TFTBuffer.unloadFont();
-
-         if (ActiveSwitch->Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
-    else if (ActiveSwitch->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
-
-    TSScreenRefresh = millis();
-
-    //P[ActivePeer].S[SNr].OldValue = P[ActivePeer].S[ActiveSens].Value;
-    noInterrupts(); 
-      ActiveSwitch->Changed = false;  
-    interrupts(); 
-  }
-}
-void ShowSwitch4(int Start) { 
-  FirstDisplayedSwitch = Start;
-
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (PeriphChanged(ActivePeer, Start,Start+3))) {
-    ScreenChanged = true;     
-    OldMode = Mode;        
-
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
-    TFTBuffer.loadFont(AA_FONT_SMALL);  
-
-    int Si = Start;
-    for (int Row=0; Row<2; Row++) {
-      for (int Col=0; Col<2; Col++) {
-        if (isSwitch(&ActivePeer->S[Si])) {
-          TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-          TFTBuffer.drawString(ActivePeer->S[Si].Name, 70+Col*100, 85+Row*90);
-        }
-      }
-      Si++; 
-      if (Si == MAX_PERIPHERALS) break;
-    }
-    TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-    TFTBuffer.drawString(ActivePeer->Name, 120,15);
-    TFTBuffer.unloadFont(); 
-  }
-  TSScreenRefresh = millis(); 
-}
-void ShowMulti(int Start) {
-  FirstDisplayedPeriph = Start;
+void ShowMulti(struct_MultiScreen *Screen) {
   char Buf[20];
   
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -1028,22 +929,22 @@ void ShowMulti(int Start) {
     TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground); 
     TFTBuffer.loadFont(AA_FONT_SMALL);  
 
-    int Si=Start;
+    int Si = 0;
     for (int Row=0; Row<2; Row++) {
       for (int Col=0; Col<2; Col++) {
-        if (PeriphMulti[Si]) {
+        if (Screen->S[Si]) {
           noInterrupts(); 
-            TempValue[Si] = PeriphMulti[Si]->Value;  
+            TempValue[Si] = Screen->S[Si]->Value;  
           interrupts();
-          if (isSwitch(PeriphMulti[Si])) {
+          if (isSwitch(Screen->S[Si]) {
             TFTBuffer.loadFont(AA_FONT_SMALL); 
             TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-            if (PeriphMulti[Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
-            else                             TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
-            TFTBuffer.drawString(PeriphMulti[Si]->Name, 70+Col*96, 85+Row*90);
+            if (Screen->S[Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
+            else                           TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
+            TFTBuffer.drawString(Screen->S[Si]->Name, 70+Col*96, 85+Row*90);
             TFTBuffer.unloadFont();
           }
-          else if (isSensorAmp (PeriphMulti[Si])) {
+          else if (isSensorAmp (Screen->S[Si])) {
             //TempValue[Si+Start] = 25.3;
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
@@ -1054,10 +955,10 @@ void ShowMulti(int Start) {
             TFTBuffer.unloadFont();
             
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(PeriphMulti[Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(Screen->S[Si]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
-          else if (isSensorVolt(PeriphMulti[Si])) {
+          else if (isSensorVolt(Screen->S[Si])) {
             //TempValue[Si] = 13.5;
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
@@ -1068,7 +969,7 @@ void ShowMulti(int Start) {
             TFTBuffer.unloadFont();
 
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(PeriphMulti[Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(Screen->S[Si]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
         }  
@@ -1078,7 +979,7 @@ void ShowMulti(int Start) {
     
     TFTBuffer.loadFont(AA_FONT_SMALL); 
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-    TFTBuffer.drawString("MultiView", 120,15);
+    TFTBuffer.drawString(Screen->Name, 120,15);
     TFTBuffer.unloadFont(); 
   }
   TSScreenRefresh = millis(); 
@@ -1114,9 +1015,9 @@ void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
       case S_PAIRING:   ShowPairing();  break;
-      case S_SENSOR1:   ShowSensor1();  break;          
+      case S_SENSOR1:   ShowSingle(ActivePeer, ActiveSens);  break;          
       case S_SENSOR4:   ShowSensor4();  break;  
-      case S_SWITCH1:   ShowSwitch1();  break;
+      case S_SWITCH1:   ShowSingle(ActivePeer, ActiveSwitch);  break;   
       case S_SWITCH4:   ShowSwitch4();  break;
       case S_MULTI:     ShowMulti(0);   break;
       case S_JSON:      ShowJSON();     break;  
