@@ -31,7 +31,7 @@ void   ClearPeers();
 void   ClearInit();
 
 void   SendPing();
-bool   ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph);
+bool   ToggleSwitch(struct_Periph *Periph);
 void   SendCommand(struct_Peer *Peer, String Cmd);
 void   SendPairingConfirm(struct_Peer *Peer);
 
@@ -63,12 +63,8 @@ void   ShowPairing();
 int    RingMeter(float vmin, float vmax, const char *units, byte scheme);
 void   LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, int StartRed);
 
-bool   PeriphChanged(struct_Peer *Peer, int Start, int Stop=99);
+bool   PeriphChanged(struct_Peer *Peer, int Start, int Stop=0);
 bool   isPDC (struct_Peer *Peer);
-bool   isPDC1(struct_Peer *Peer);
-bool   isPDC2(struct_Peer *Peer);
-bool   isPDC4(struct_Peer *Peer);
-bool   isPDC8(struct_Peer *Peer);
 bool   isBat(struct_Peer *Peer);
 bool   isSwitch(struct_Periph *Periph);
 bool   isSensor(struct_Periph *Periph);
@@ -76,15 +72,15 @@ bool   isSensorAmp (struct_Periph *Periph);
 bool   isSensorVolt(struct_Periph *Periph);
 struct_Periph *FindPeriphById (struct_Peer *Peer, uint16_t Id);
 struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual=false);
-struct_Periph *FindNextPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
-struct_Periph *FindPrevPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
-struct_Peer   *FindPeerByName(String Name);
-struct_Peer   *FindPeerById(uint8_t Id);
-struct_Peer   *FindPeerByMAC(const uint8_t *MAC);
-struct_Peer   *FindEmptyPeer();
-struct_Peer   *FindFirstPeer(int Type=MODULE_ALL);
-struct_Peer   *FindNextPeer (struct_Peer *Peer, int Type=MODULE_ALL);
-struct_Peer   *FindPrevPeer (struct_Peer *Peer, int Type=MODULE_ALL);
+struct_Periph *FindNextPeriph (struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
+struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
+struct_Peer   *FindPeerByName (String Name);
+struct_Peer   *FindPeerById   (uint16_t Id);
+struct_Peer   *FindPeerByMAC  (const uint8_t *MAC);
+struct_Peer   *FindEmptyPeer  ();
+struct_Peer   *FindFirstPeer  (int Type=MODULE_ALL);
+struct_Peer   *FindNextPeer   (struct_Peer *Peer, int Type=MODULE_ALL);
+struct_Peer   *FindPrevPeer   (struct_Peer *Peer, int Type=MODULE_ALL);
 int            FindHighestPeerId();
 struct_Peer   *SelectPeer();
 struct_Periph *SelectPeriph();
@@ -393,8 +389,8 @@ void loop() {
           case S_SWITCH1: 
             switch (Touch.Gesture) {
               case CLICK:       ToggleSwitch(ActiveSwitch);  break;
-              case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
-              case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
+              case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
+              case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
             }
@@ -1302,22 +1298,6 @@ bool isPDC(struct_Peer *Peer) {
                     (Peer->Type == PDC_SENSOR_MIX));   
   return false;   
 }
-bool isPDC1(struct_Peer *Peer) {
-  if (Peer) return (Peer->Type == SWITCH_1_WAY);
-  return false;   
-}
-bool isPDC2(struct_Peer *Peer) {
-  if (Peer) return (Peer->Type == SWITCH_2_WAY);
-  return false;   
-}
-bool isPDC4(struct_Peer *Peer) {
-  if (Peer) return (Peer->Type == SWITCH_4_WAY);
-  return false;   
-}
-bool isPDC8(struct_Peer *Peer) {
-  if (Peer) return (Peer->Type == SWITCH_8_WAY);
-  return false;   
-}
 bool isBat(struct_Peer *Peer) {
   if (Peer) return ((Peer->Type == BATTERY_SENSOR) or (Peer->Type == PDC_SENSOR_MIX));
   return false;
@@ -1341,7 +1321,7 @@ bool isSensorAmp(struct_Periph *Periph) {
 bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
   int ret = false;
   if (Peer) {
-    if (Stop == 99) Stop = Start;
+    if (Stop == 0) Stop = Start;
     for (int Si=Start; Si++; Si<Stop+1) {
       if (Si == MAX_PERIPHERALS) break;
       if (Peer->S[Si].Changed) ret = true;
@@ -1376,8 +1356,11 @@ struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual){
   }
   return NULL;
 }
-struct_Periph *FindNextPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type, bool OnlyActual){
+struct_Periph *FindNextPeriph (struct_Periph *Periph, int Type, bool OnlyActual){
+  struct_Peer *Peer = Periph->Peer;     
   if ((Periph) and (Peer)) {
+    struct_Peer *Peer = Periph->Peer; 
+
     if (Type == SENS_TYPE_EQUAL) Type = Periph->Type;
 
     int SNr = Periph->Id;
@@ -1412,7 +1395,8 @@ struct_Periph *FindNextPeriph (struct_Peer *Peer, struct_Periph *Periph, int Typ
   }
   return Periph;
 }
-struct_Periph *FindPrevPeriph (struct_Peer *Peer, struct_Periph *Periph, int Type, bool OnlyActual){
+struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type, bool OnlyActual){
+  struct_Peer *Peer = Periph->Peer;     
   if ((Periph) and (Peer)) {
     if (Type == SENS_TYPE_EQUAL) Type = Periph->Type;
     
@@ -1481,7 +1465,7 @@ struct_Periph *SelectPeriph() {
   }
   return NULL;
 }
-struct_Peer *SelectPeer() {
+struct_Peer   *SelectPeer  () {
   if (!ActivePeer) ActivePeer = FindFirstPeer();
   if (ActivePeer) {
     if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
@@ -1511,13 +1495,13 @@ struct_Peer *FindPeerByName(String Name) {
   //Serial.println("durchgelaufen");
   return NULL;
 }
-struct_Peer *FindPeerById(uint8_t Id) {
+struct_Peer *FindPeerById  (uint16_t Id) {
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
     if (P[PNr].Id == Id) return &P[PNr];
   }
   return NULL;
 }
-struct_Peer *FindPeerByMAC(const uint8_t *MAC) {
+struct_Peer *FindPeerByMAC (const uint8_t *MAC) {
   Serial.print("gesuchte MAC: "); PrintMAC(MAC);
 
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
@@ -1529,20 +1513,20 @@ struct_Peer *FindPeerByMAC(const uint8_t *MAC) {
   Serial.println(" nicht gefunden");
   return NULL;
 }
-struct_Peer *FindEmptyPeer() {
+struct_Peer *FindEmptyPeer () {
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
     if (P[PNr].Type == 0) return &P[PNr];
   }
   return NULL;
 }
-struct_Peer *FindFirstPeer(int Type) {
+struct_Peer *FindFirstPeer (int Type) {
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
     if (P[PNr].Type == Type) return &P[PNr];
     if ((P[PNr].Type) and (Type == MODULE_ALL)) return &P[PNr];
   }
   return NULL;
 }
-struct_Peer *FindNextPeer(struct_Peer *Peer, int Type) {
+struct_Peer *FindNextPeer  (struct_Peer *Peer, int Type) {
   if (Peer) {
     int PNr = Peer->Id;
     int Id  = Peer->Id;
@@ -1561,7 +1545,7 @@ struct_Peer *FindNextPeer(struct_Peer *Peer, int Type) {
   }
   return Peer;
 }
-struct_Peer *FindPrevPeer(struct_Peer *Peer, int Type) {
+struct_Peer *FindPrevPeer  (struct_Peer *Peer, int Type) {
   if (Peer) {
     int PNr = Peer->Id;
     int Id  = Peer->Id;
