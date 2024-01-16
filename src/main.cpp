@@ -47,11 +47,8 @@ void   SetMsgIndicator();
 void   ScreenUpdate();
 void   PushTFT();
 void   ShowMessage(String Msg);
-void   ShowSwitch1();
-void   ShowSwitch4(int Start=0);
-void   ShowSensor1();
-void   ShowSensor4(int Start=0);
-void   ShowMulti(int Start=0);
+void   ShowSingle(struct_Periph *Periph);
+void   ShowMulti(struct_MultiScreen *Screen);
 void   ShowEichenVolt();
 void   ShowMenu();
 void   ShowJSON();
@@ -86,6 +83,7 @@ struct_Peer   *SelectPeer();
 struct_Periph *SelectPeriph();
 
 int    TouchQuarter(void);
+int    TouchedField(void);
 int    TouchRead();
 
 void   PrintMAC(const uint8_t * mac_addr);
@@ -929,7 +927,7 @@ void SendCommand(struct_Peer *Peer, String Cmd) {
 }
 #pragma endregion Send-Things
 #pragma region Sensor-Screens
-void ShowSingle(struct_Peer *Peer, struct_Periph *Periph) {
+void ShowSingle(struct_Periph *Periph) {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (Periph->Changed)) {
     ScreenChanged = true;   
     OldMode = Mode;          
@@ -942,9 +940,9 @@ void ShowSingle(struct_Peer *Peer, struct_Periph *Periph) {
       case SENS_TYPE_AMP:    RingMeter(0, 30, "Amp",  GREEN2RED); break;
       case SENS_TYPE_VOLT:   RingMeter(0, 15, "Volt", GREEN2RED); break;
       case SENS_TYPE_SWITCH: TFTBuffer.pushImage(0,0, 240, 240, Btn);
-                             TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name, 120,130); TFTBuffer.unloadFont(); 
-                             TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(Peer->Name,   120,160); TFTBuffer.unloadFont();
-                             if (Periph->Value == 1)      TFTBuffer.pushImage(107,70,27,10,BtnOn);
+                             TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name,       120,130); TFTBuffer.unloadFont(); 
+                             TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(Periph->Peer->Name, 120,160); TFTBuffer.unloadFont();
+                             if      (Periph->Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
                              else if (Periph->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
                              break;
       default:               ShowMessage("No input"); break;
@@ -1569,6 +1567,18 @@ int          FindHighestPeerId() {
 #pragma endregion Peer/Periph-Checks
 #pragma region Touch-Things
 int  TouchQuarter(void) {
+  if ((Touch.x1<120) and (Touch.y1<120)) return 0;
+  if ((Touch.x1>120) and (Touch.y1<120)) return 1;
+  if ((Touch.x1<120) and (Touch.y1>120)) return 2;
+  if ((Touch.x1>120) and (Touch.y1>120)) return 3;
+  return NOT_FOUND;
+}
+int  TouchedField(void) {
+  for (int Row=0; Row<MULTI_SCREEN_ROWS; Row++) {
+    for (int Col=0; Col<MULTI_SCREEN_COLS; Col++) {
+      if ((Touch.x1<(TFT.width/MULTI_SCREEN_ROW)) and (Touch.y1<120)) return 0;    
+    }
+
   if ((Touch.x1<120) and (Touch.y1<120)) return 0;
   if ((Touch.x1>120) and (Touch.y1<120)) return 1;
   if ((Touch.x1<120) and (Touch.y1>120)) return 2;
