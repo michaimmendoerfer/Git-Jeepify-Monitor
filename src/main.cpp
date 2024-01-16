@@ -341,7 +341,7 @@ void loop() {
           case S_MENU    : 
             switch (Touch.Gesture) {
               case CLICK:       
-                switch (TouchQuarter()) {
+                switch (TouchedField()) {
                   case 0: 
                     if (!ActiveSens) ActiveSens = FindFirstPeriph(ActivePeer, SENS_TYPE_SENS, false);
                     if (!ActiveSens) ShowMessage("No Sensor"); 
@@ -397,7 +397,7 @@ void loop() {
             switch (Touch.Gesture) {
                case CLICK:       
                 struct_Periph *Periph;
-                Periph = Screen[ActiveMultiScreen].S[TouchQuarter()]; break;
+                Periph = Screen[ActiveMultiScreen].S[TouchedField()]; break;
                   
                 if (isSwitch(Periph)) { 
                   ToggleSwitch(Periph);  
@@ -1566,23 +1566,18 @@ int          FindHighestPeerId() {
 }
 #pragma endregion Peer/Periph-Checks
 #pragma region Touch-Things
-int  TouchQuarter(void) {
+/*int  TouchQuarter(void) {
   if ((Touch.x1<120) and (Touch.y1<120)) return 0;
   if ((Touch.x1>120) and (Touch.y1<120)) return 1;
   if ((Touch.x1<120) and (Touch.y1>120)) return 2;
   if ((Touch.x1>120) and (Touch.y1>120)) return 3;
   return NOT_FOUND;
-}
+}*/
 int  TouchedField(void) {
   for (int Row=0; Row<MULTI_SCREEN_ROWS; Row++) {
     for (int Col=0; Col<MULTI_SCREEN_COLS; Col++) {
-      if ((Touch.x1<(TFT.width/MULTI_SCREEN_ROW)) and (Touch.y1<120)) return 0;    
+      if ((Touch.x1<(TFT.width/MULTI_SCREEN_COLS*Col)) and (Touch.y1<(TFT.width/MULTI_SCREEN_COLS*(Col+1)))) return (Row*MULTI_SCREEN_COLS+MULTI_SCREEN_COLS);
     }
-
-  if ((Touch.x1<120) and (Touch.y1<120)) return 0;
-  if ((Touch.x1>120) and (Touch.y1<120)) return 1;
-  if ((Touch.x1<120) and (Touch.y1>120)) return 2;
-  if ((Touch.x1>120) and (Touch.y1>120)) return 3;
   return NOT_FOUND;
 }
 int  TouchRead() {
