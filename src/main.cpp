@@ -98,15 +98,18 @@ unsigned int rainbow(byte value);
 #pragma endregion Function_Definitions
 #pragma region Globals
 #define MULTI_SCREENS 20 // 0-9 Peers, 10-10 Multi
-#define PERIPH_PER_SCREEN 4
+#define MULTI_SCREEN_ROWS 2
+#define MULTI_SCREEN_COLS 2
+#define PERIPH_PER_SCREEN MULTI_SCREEN_COLS*MULTI_SCREEN_ROWS
 
 struct struct_MultiScreen {
-  int  Id;
-  int  PeerId; // nicht für Multi, nur für 0-9
-  int  PeriphId[PERIPH_PER_SCREEN];
-  struct_Peer *Peer;
+  int            Id;
+  int            PeerId; // nicht für Multi, nur für 0-9
+  int            PeriphId[PERIPH_PER_SCREEN];
+  bool           isModuleScreen = false;
+  struct_Peer   *Peer;
   struct_Periph *S[PERIPH_PER_SCREEN];
-  char Name[20];
+  char           Name[20];
 };
 struct_MultiScreen Screen[MULTI_SCREENS];
 int ActiveMultiScreen = 0; 
@@ -182,7 +185,7 @@ TFT_eSprite TFTGaugeSwitch = TFT_eSprite(&TFT);
 
 CST816D TouchHW(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
 #pragma endregion Globals
-
+#pragma region Main
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   char* buff = (char*) incomingData;   
   StaticJsonDocument<500> doc; 
@@ -234,7 +237,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           strcpy(Peer->Name, doc["Node"]);
           Peer->Type = doc["Type"];
 
-          Peer->Id = FindHighestPeerId()+1;
+          Peer->Id = FindHighestPeerId()+1; // PeerId starts with 1;
           
           Serial.print("vergebene Id=");    Serial.println(Peer->Id);
           //Serial.print("vergebener Slot="); Serial.println(Peer->Slot);
@@ -250,7 +253,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               Peer->S[Si].Type = doc[Buf];
               sprintf(Buf, "N%d", Si);      // Name0
               strcpy(Peer->S[Si].Name, doc[Buf]);
-              Peer->S[Si].Id = Si+1; //0 oder 1? 
+              Peer->S[Si].Id = Si+1; //PeriphId starts with 1
               Peer->S[Si].PeerId = Peer->Id;
             }
           }   
@@ -262,6 +265,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           for (int s=0; s<MAX_PEERS; s++) {
             if (!Screen[s].PeerId) {
               strcpy(Screen[s].Name, doc["Node"]); 
+              Screen[s].isModuleScreen = true;
               Screen[s].PeerId = Peer->Id;
               Screen[s].Peer = Peer;
               for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
@@ -543,7 +547,28 @@ void loop() {
   }
   else if (millis() - TSMsgStart > LOGO_INTERVAL) { Mode = S_MENU; TSMsgStart = 0; }
 }
-
+void ScreenUpdate() {
+  if (!TSMsgStart) {
+    switch (Mode) {
+      case S_PAIRING:   ShowPairing();  break;
+      case S_SENSOR1:   ShowSingle(ActivePeer, ActiveSens);  break;          
+      case S_SENSOR4:   ShowMulti(ActiveMultiScreen);  break;  
+      case S_SWITCH1:   ShowSingle(ActivePeer, ActiveSwitch);  break;   
+      case S_SWITCH4:   ShowMulti(ActiveMultiScreen);  break; 
+      case S_MULTI:     ShowMulti(9);   break;
+      case S_JSON:      ShowJSON();     break;  
+      case S_SETTING:   ShowSettings(); break;
+      case S_PEER:      ShowPeer();     break;
+      case S_PEERS:     ShowPeers();    break;
+      case S_PEER_SEL:  SelectPeer();   break;
+      case S_PERI_SEL:  SelectPeriph(); break;
+      case S_CAL_VOL:   ShowEichenVolt();   break;  
+      case S_MENU:      ShowMenu();     break;        
+    }
+  }
+  PushTFT();
+}
+#pragma endregion Main
 #pragma region Peer-Things
 void SavePeers() {
   Serial.println("SavePeers...");
@@ -949,8 +974,8 @@ void ShowMulti(struct_MultiScreen *Screen) {
     TFTBuffer.loadFont(AA_FONT_SMALL);  
 
     int Si = 0;
-    for (int Row=0; Row<2; Row++) {
-      for (int Col=0; Col<2; Col++) {
+    for (int Row=0; Row<MULTI_SCREEN_ROWS; Row++) {
+      for (int Col=0; Col<MULTI_SCREEN_COLS; Col++) {
         if (Screen->S[Si]) {
           noInterrupts(); 
             TempValue[Si] = Screen->S[Si]->Value;  
@@ -964,7 +989,6 @@ void ShowMulti(struct_MultiScreen *Screen) {
             TFTBuffer.unloadFont();
           }
           else if (isSensorAmp (Screen->S[Si])) {
-            //TempValue[Si+Start] = 25.3;
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
             TFTBuffer.loadFont(AA_FONT_MONO); 
@@ -978,7 +1002,6 @@ void ShowMulti(struct_MultiScreen *Screen) {
             TFTBuffer.unloadFont();
           }
           else if (isSensorVolt(Screen->S[Si])) {
-            //TempValue[Si] = 13.5;
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
             TFTBuffer.loadFont(AA_FONT_MONO); 
@@ -1030,27 +1053,6 @@ void ShowEichenVolt() {
 }
 #pragma endregion Sensor-Screens
 #pragma region System-Screens
-void ScreenUpdate() {
-  if (!TSMsgStart) {
-    switch (Mode) {
-      case S_PAIRING:   ShowPairing();  break;
-      case S_SENSOR1:   ShowSingle(ActivePeer, ActiveSens);  break;          
-      case S_SENSOR4:   ShowMulti(ActiveMultiScreen);  break;  
-      case S_SWITCH1:   ShowSingle(ActivePeer, ActiveSwitch);  break;   
-      case S_SWITCH4:   ShowMulti(ActiveMultiScreen);  break; 
-      case S_MULTI:     ShowMulti(9);   break;
-      case S_JSON:      ShowJSON();     break;  
-      case S_SETTING:   ShowSettings(); break;
-      case S_PEER:      ShowPeer();     break;
-      case S_PEERS:     ShowPeers();    break;
-      case S_PEER_SEL:  SelectPeer();   break;
-      case S_PERI_SEL:  SelectPeriph(); break;
-      case S_CAL_VOL:   ShowEichenVolt();   break;  
-      case S_MENU:      ShowMenu();     break;        
-    }
-  }
-  PushTFT();
-}
 void ShowMessage(String Msg) {
     ScreenChanged = true;             
     
