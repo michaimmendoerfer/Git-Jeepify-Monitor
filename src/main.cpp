@@ -105,10 +105,10 @@ unsigned int rainbow(byte value);
 struct struct_MultiScreen {
   int            Id;
   int            PeerId; // nicht für Multi, nur für 0-9
-  int            PeriphId[PERIPH_PER_SCREEN];
-  bool           isModuleScreen = false;
   struct_Peer   *Peer;
+  int            PeriphId[PERIPH_PER_SCREEN];
   struct_Periph *S[PERIPH_PER_SCREEN];
+  bool           isModuleScreen = false;
   char           Name[20];
 };
 struct_MultiScreen Screen[MULTI_SCREENS];
