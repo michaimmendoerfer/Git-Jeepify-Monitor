@@ -392,7 +392,7 @@ void loop() {
             break;
           case S_SWITCH1: 
             switch (Touch.Gesture) {
-              case CLICK:       ToggleSwitch(ActivePeer, ActiveSwitch);  break;
+              case CLICK:       ToggleSwitch(ActiveSwitch);  break;
               case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
               case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActivePeer, ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
               case SWIPE_UP:    Mode = S_MENU; break;
@@ -406,10 +406,10 @@ void loop() {
                 Periph = Screen[ActiveMultiScreen].S[TouchQuarter()]; break;
                   
                 if (isSwitch(Periph)) { 
-                  ToggleSwitch(FindPeerById(Periph->PeerId), Periph); 
+                  ToggleSwitch(Periph);  
                 }
                 else if (isSensor(Periph)) {
-                  ActivePeer   = FindPeerById(Periph->PeerId);
+                  ActivePeer   = Periph->Peer;
                   ActivePeriph = Periph;
                   Mode = S_SENSOR1;
                 }
@@ -896,8 +896,8 @@ void SendPairingConfirm(struct_Peer *Peer) {
   Serial.print("Sent you are paired"); 
   Serial.println(jsondata);         
 }
-bool ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph) {
-  if ((!Peer) or (!Periph)) return false;
+bool ToggleSwitch(struct_Periph *Periph) {
+   if (!Periph)) return false;
   StaticJsonDocument<500> doc;
   String jsondata;
   jsondata = "";  //clearing String after data is being sent
@@ -909,7 +909,7 @@ bool ToggleSwitch(struct_Peer *Peer, struct_Periph *Periph) {
   
   serializeJson(doc, jsondata);  
   
-  esp_now_send(Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+  esp_now_send(Periph->Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
   Serial.println(jsondata);
   
   jsondata = "";
