@@ -1,7 +1,7 @@
 #define NODE_NAME "Jeep_Monitor_V2"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 1.11"
+#define VERSION   "V 1.12"
 
 #pragma region Includes
 #include <Arduino.h>
@@ -48,7 +48,7 @@ void   ScreenUpdate();
 void   PushTFT();
 void   ShowMessage(String Msg);
 void   ShowSingle(struct_Periph *Periph);
-void   ShowMulti(struct_MultiScreen *Screen);
+void   ShowMulti(struct_MultiScreen *ActiveScreen);
 void   ShowEichenVolt();
 void   ShowMenu();
 void   ShowJSON();
@@ -82,7 +82,7 @@ int            FindHighestPeerId();
 struct_Peer   *SelectPeer();
 struct_Periph *SelectPeriph();
 
-int    TouchQuarter(void);
+//int    TouchQuarter(void);
 int    TouchedField(void);
 int    TouchRead();
 
@@ -91,20 +91,6 @@ float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
 #pragma endregion Function_Definitions
 #pragma region Globals
-#define MULTI_SCREENS 20 // 0-9 Peers, 10-10 Multi
-#define MULTI_SCREEN_ROWS 2
-#define MULTI_SCREEN_COLS 2
-#define PERIPH_PER_SCREEN MULTI_SCREEN_COLS*MULTI_SCREEN_ROWS
-
-struct struct_MultiScreen {
-  int            Id;
-  int            PeerId; // nicht für Multi, nur für 0-9
-  struct_Peer   *Peer;
-  int            PeriphId[PERIPH_PER_SCREEN];
-  struct_Periph *S[PERIPH_PER_SCREEN];
-  bool           isModuleScreen = false;
-  char           Name[20];
-};
 struct_MultiScreen Screen[MULTI_SCREENS];
 int ActiveMultiScreen = 0; 
 int PeriphToFill;
@@ -262,7 +248,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
               Screen[s].isModuleScreen = true;
               Screen[s].PeerId = Peer->Id;
               Screen[s].Peer = Peer;
-              for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+              for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) {
                  Screen[s].PeriphId[SNr] = Peer->S[SNr].Id;
                  Screen[s].S[SNr] = &Peer->S[SNr];
               }
@@ -369,16 +355,19 @@ void loop() {
           case S_SENSOR1: 
             switch (Touch.Gesture) {
               case CLICK:       
-                ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
+                ActiveSens = FindNextPeriph(ActiveSens, SENS_TYPE_SENS); 
                 ScreenChanged = true; 
+                OldMode = 0;
                 break;
               case SWIPE_LEFT:  
-                ActiveSens = FindNextPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
-                ScreenChanged = true; 
+                ActiveSens = FindNextPeriph(ActiveSens, SENS_TYPE_SENS); 
+                ScreenChanged = true;
+                OldMode = 0;
                 break;
               case SWIPE_RIGHT: 
-                ActiveSens = FindPrevPeriph(ActivePeer, ActiveSens, SENS_TYPE_SENS); 
-                ScreenChanged = true; 
+                ActiveSens = FindPrevPeriph(ActiveSens, SENS_TYPE_SENS); 
+                ScreenChanged = true;
+                OldMode = 0; 
                 break;
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
@@ -387,8 +376,8 @@ void loop() {
           case S_SWITCH1: 
             switch (Touch.Gesture) {
               case CLICK:       ToggleSwitch(ActiveSwitch);  break;
-              case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
-              case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActiveSwitch, SENS_TYPE_SWITCH); ScreenChanged = true; break;
+              case SWIPE_LEFT:  ActiveSwitch = FindNextPeriph(ActiveSwitch, SENS_TYPE_SWITCH); OldMode = 99; ScreenChanged = true; break;
+              case SWIPE_RIGHT: ActiveSwitch = FindPrevPeriph(ActiveSwitch, SENS_TYPE_SWITCH); OldMode = 99; ScreenChanged = true; break;
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
             }
@@ -403,13 +392,13 @@ void loop() {
                   ToggleSwitch(Periph);  
                 }
                 else if (isSensor(Periph)) {
-                  ActivePeer   = Periph->Peer;
+                  ActivePeer   = FindPeerById(Periph->PeerId);
                   ActivePeriph = Periph;
                   Mode = S_SENSOR1;
                 }
                 break;
               case LONG_PRESS:
-                PeriphToFill = TouchQuarter();
+                PeriphToFill = TouchedField();
                 Mode = S_PERI_SEL;
                 break;
               case SWIPE_LEFT:  if  (ActiveMultiScreen < MULTI_SCREENS-1) ActiveMultiScreen++;
@@ -431,11 +420,11 @@ void loop() {
                 ChangesSaved = false;
                 Mode = S_MULTI;
               case SWIPE_LEFT:  
-                ActivePeriph = FindNextPeriph(ActivePeer, ActivePeriph, SENS_TYPE_ALL); 
+                ActivePeriph = FindNextPeriph(ActivePeriph, SENS_TYPE_ALL); 
                 ScreenChanged = true; 
                 break;
               case SWIPE_RIGHT: 
-                ActivePeriph = FindPrevPeriph(ActivePeer, ActivePeriph, SENS_TYPE_ALL); 
+                ActivePeriph = FindPrevPeriph(ActivePeriph, SENS_TYPE_ALL); 
                 ScreenChanged = true; 
                 break;
               case SWIPE_UP:    Mode = S_MULTI; break;
@@ -545,11 +534,11 @@ void ScreenUpdate() {
   if (!TSMsgStart) {
     switch (Mode) {
       case S_PAIRING:   ShowPairing();  break;
-      case S_SENSOR1:   ShowSingle(ActivePeer, ActiveSens);  break;          
-      case S_SENSOR4:   ShowMulti(ActiveMultiScreen);  break;  
-      case S_SWITCH1:   ShowSingle(ActivePeer, ActiveSwitch);  break;   
-      case S_SWITCH4:   ShowMulti(ActiveMultiScreen);  break; 
-      case S_MULTI:     ShowMulti(9);   break;
+      case S_SENSOR1:   ShowSingle(ActiveSens);  break;          
+      case S_SENSOR4:   ShowMulti(&Screen[ActiveMultiScreen]);  break;  
+      case S_SWITCH1:   ShowSingle(ActiveSwitch);  break;   
+      case S_SWITCH4:   ShowMulti(&Screen[ActiveMultiScreen]);  break; 
+      case S_MULTI:     ShowMulti(&Screen[9]);   break;
       case S_JSON:      ShowJSON();     break;  
       case S_SETTING:   ShowSettings(); break;
       case S_PEER:      ShowPeer();     break;
@@ -616,9 +605,9 @@ void SavePeers() {
   
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
   
-  SavePeriphMulti();
-
   preferences.end();
+
+  SavePeriphMulti();
 }
 void GetPeers() {
   preferences.begin("JeepifyPeers", true);
@@ -655,7 +644,9 @@ void GetPeers() {
       BufS = preferences.getString(Buf);
       strcpy(P[Pi].Name, BufS.c_str());
 
-      Serial.print(Pi); Serial.print(": Type="); Serial.print(P[Pi].Type); 
+      Serial.print(Pi); 
+      Serial.print(": Id="); Serial.print(P[Pi].Id); 
+      Serial.print(": Type="); Serial.print(P[Pi].Type); 
       Serial.print(", Name="); Serial.print(P[Pi].Name);
       Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
       Serial.println();
@@ -673,7 +664,7 @@ void GetPeers() {
         
         P[Pi].S[Si].PeerId = P[Pi].Id;
         
-        sprintf(Buf, "SName%d=%s, SType%d=%d, SId%d=%d", Si, BufS, Si, P[Pi].S[Si].Type, Si, P[Pi].S[Si].Id);
+        sprintf(Buf, "SName%d=%s, SType%d=%d, SId%d=%d, SId.PeerId=%d", Si, BufS, Si, P[Pi].S[Si].Type, Si, P[Pi].S[Si].Id, P[Pi].S[Si].PeerId);
         Serial.println(Buf);
 
         if (isSensor(&P[Pi].S[Si]) and (ActiveSens == NULL))   ActiveSens   = &P[Pi].S[Si];
@@ -696,9 +687,9 @@ void GetPeers() {
       }
     }
   }
-  GetPeriphMulti();
-
   preferences.end();
+  
+  GetPeriphMulti();
 }
 void SavePeriphMulti() {
   char Buf[30];
@@ -891,7 +882,7 @@ void SendPairingConfirm(struct_Peer *Peer) {
   Serial.println(jsondata);         
 }
 bool ToggleSwitch(struct_Periph *Periph) {
-   if (!Periph)) return false;
+   if (!Periph) return false;
   StaticJsonDocument<500> doc;
   String jsondata;
   jsondata = "";  //clearing String after data is being sent
@@ -903,7 +894,7 @@ bool ToggleSwitch(struct_Periph *Periph) {
   
   serializeJson(doc, jsondata);  
   
-  esp_now_send(Periph->Peer->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+  esp_now_send(FindPeerById(Periph->PeerId)->BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
   Serial.println(jsondata);
   
   jsondata = "";
@@ -929,7 +920,7 @@ void SendCommand(struct_Peer *Peer, String Cmd) {
 #pragma region Sensor-Screens
 void ShowSingle(struct_Periph *Periph) {
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (Periph->Changed)) {
-    ScreenChanged = true;   
+    //ScreenChanged = true;   
     OldMode = Mode;          
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
@@ -941,7 +932,7 @@ void ShowSingle(struct_Periph *Periph) {
       case SENS_TYPE_VOLT:   RingMeter(0, 15, "Volt", GREEN2RED); break;
       case SENS_TYPE_SWITCH: TFTBuffer.pushImage(0,0, 240, 240, Btn);
                              TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name,       120,130); TFTBuffer.unloadFont(); 
-                             TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(Periph->Peer->Name, 120,160); TFTBuffer.unloadFont();
+                             TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(FindPeerById(Periph->PeerId)->Name, 120,160); TFTBuffer.unloadFont();
                              if      (Periph->Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
                              else if (Periph->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
                              break;
@@ -954,12 +945,16 @@ void ShowSingle(struct_Periph *Periph) {
     interrupts();
   } 
 }
-void ShowMulti(struct_MultiScreen *Screen) {
+void ShowMulti(struct_MultiScreen *ActiveScreen) {
   char Buf[20];
   float TempValue[PERIPH_PER_SCREEN];
+  bool Show = false;
 
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
-    ScreenChanged = true;     
+  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) Show = true;
+  for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) if (ActiveScreen->S[SNr]->Changed) Show = true;
+
+  if (Show) {
+    //ScreenChanged = true;     
     OldMode = Mode;        
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, false);
@@ -970,19 +965,19 @@ void ShowMulti(struct_MultiScreen *Screen) {
     int Si = 0;
     for (int Row=0; Row<MULTI_SCREEN_ROWS; Row++) {
       for (int Col=0; Col<MULTI_SCREEN_COLS; Col++) {
-        if (Screen->S[Si]) {
+        if (ActiveScreen->S[Si]) {
           noInterrupts(); 
-            TempValue[Si] = Screen->S[Si]->Value;  
+            TempValue[Si] = ActiveScreen->S[Si]->Value;  
           interrupts();
-          if (isSwitch(Screen->S[Si])) {
+          if (isSwitch(ActiveScreen->S[Si])) {
             TFTBuffer.loadFont(AA_FONT_SMALL); 
             TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
-            if (Screen->S[Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
-            else                           TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
-            TFTBuffer.drawString(Screen->S[Si]->Name, 70+Col*96, 85+Row*90);
+            if (ActiveScreen->S[Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
+            else                                 TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
+            TFTBuffer.drawString(ActiveScreen->S[Si]->Name, 70+Col*96, 85+Row*90);
             TFTBuffer.unloadFont();
           }
-          else if (isSensorAmp (Screen->S[Si])) {
+          else if (isSensorAmp (ActiveScreen->S[Si])) {
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
             TFTBuffer.loadFont(AA_FONT_MONO); 
@@ -992,10 +987,10 @@ void ShowMulti(struct_MultiScreen *Screen) {
             TFTBuffer.unloadFont();
             
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(Screen->S[Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(ActiveScreen->S[Si]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
-          else if (isSensorVolt(Screen->S[Si])) {
+          else if (isSensorVolt(ActiveScreen->S[Si])) {
             LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
             TFTBuffer.loadFont(AA_FONT_MONO); 
@@ -1005,7 +1000,7 @@ void ShowMulti(struct_MultiScreen *Screen) {
             TFTBuffer.unloadFont();
 
             TFTBuffer.loadFont(AA_FONT_SMALL); 
-            TFTBuffer.drawString(Screen->S[Si]->Name,  72+Col*96, 105+Row*90);
+            TFTBuffer.drawString(ActiveScreen->S[Si]->Name,  72+Col*96, 105+Row*90);
             TFTBuffer.unloadFont();
           }
         }  
@@ -1015,7 +1010,7 @@ void ShowMulti(struct_MultiScreen *Screen) {
     
     TFTBuffer.loadFont(AA_FONT_SMALL); 
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
-    TFTBuffer.drawString(Screen->Name, 120,15);
+    TFTBuffer.drawString(ActiveScreen->Name, 120,15);
     TFTBuffer.unloadFont(); 
   }
   TSScreenRefresh = millis(); 
@@ -1355,46 +1350,59 @@ struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual){
   return NULL;
 }
 struct_Periph *FindNextPeriph (struct_Periph *Periph, int Type, bool OnlyActual){
-  struct_Peer *Peer = Periph->Peer;     
-  if ((Periph) and (Peer)) {
-    struct_Peer *Peer = Periph->Peer; 
+  struct_Peer *Peer = FindPeerById(Periph->PeerId);    
+  int SNr = Periph->Id;
 
+  if ((Periph) and (Peer)) {
     if (Type == SENS_TYPE_EQUAL) Type = Periph->Type;
 
-    int SNr = Periph->Id;
-    int Id  = Periph->Id;
-
-    for (int Pi=0; Pi<MAX_PEERS; Pi++) {
-      for (int i=0; i<MAX_PERIPHERALS; i++) {
-        SNr++; if (SNr == MAX_PERIPHERALS) SNr = 0;
-        char Buf[100];
-        sprintf(Buf, "Vergleiche %s, %s (Id=%d) mit %s, %s (Id(%d)...", Peer->Name, Peer->S[SNr].Name, Peer->S[SNr].Id, ActivePeer->Name, ActivePeer->S[Id].Name, ActivePeer->S[Id].Id);
-        switch (Type) {
+    for (int SNr=Periph->Id; SNr < MAX_PERIPHERALS; SNr++) {
+      switch (Type) {
           case SENS_TYPE_ALL:
-            if (Peer->S[SNr].Id > Id) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if (Peer->S[SNr].Type > 0) { ActivePeer = Peer; return &Peer->S[SNr]; break;}
             break;
           case SENS_TYPE_SENS:  
-            /*Serial.print("ID orig: "); Serial.print(Id);
-            Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
-            Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
-            */
-            if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id > Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-            if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id > Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if (Peer->S[SNr].Type == SENS_TYPE_AMP)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if (Peer->S[SNr].Type == SENS_TYPE_VOLT) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
             break;
           default:
-            if ((Peer->S[SNr].Type == Type) and (Peer->S[SNr].Id > Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if (Peer->S[SNr].Type == Type) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
             break;
-        }
       }
-      if (OnlyActual) return NULL;
-      Peer = FindNextPeer(Peer);
-      Id = -1; SNr = -1;
     }
+
+    if (!OnlyActual) {
+      for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+        struct_Peer *TempPeer = FindNextPeer(Peer);
+        if (TempPeer != Peer) {
+          Peer = TempPeer;
+
+          for (SNr=0; SNr < MAX_PERIPHERALS; SNr++) {
+            switch (Type) {
+              case SENS_TYPE_ALL:
+                if (Peer->S[SNr].Type > 0)               { ActivePeer = Peer; return &Peer->S[SNr]; break;}
+                break;
+              case SENS_TYPE_SENS:  
+                if (Peer->S[SNr].Type == SENS_TYPE_AMP)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+                if (Peer->S[SNr].Type == SENS_TYPE_VOLT) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+                break;
+              default:
+                if (Peer->S[SNr].Type == Type) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+                break;
+            }
+          }
+        }
+        else return Periph;
+      }
+    }
+    
+    return Periph;
   }
   return Periph;
 }
+
 struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type, bool OnlyActual){
-  struct_Peer *Peer = Periph->Peer;     
+  struct_Peer *Peer = FindPeerById(Periph->PeerId);     
   if ((Periph) and (Peer)) {
     if (Type == SENS_TYPE_EQUAL) Type = Periph->Type;
     
@@ -1423,7 +1431,7 @@ struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type, bool OnlyActual)
       }
       if (OnlyActual) return NULL;
       Peer = FindPrevPeer(Peer);
-      Id = MAX_PERIPHERALS; SNr = MAX_PERIPHERALS;
+      Id = MAX_PERIPHERALS+1; SNr = MAX_PERIPHERALS;
     }
   }
   return Periph;
@@ -1519,40 +1527,31 @@ struct_Peer *FindEmptyPeer () {
 }
 struct_Peer *FindFirstPeer (int Type) {
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
-    if (P[PNr].Type == Type) return &P[PNr];
+    if ( P[PNr].Type == Type)                     return &P[PNr];
     if ((P[PNr].Type) and (Type == MODULE_ALL)) return &P[PNr];
   }
   return NULL;
 }
 struct_Peer *FindNextPeer  (struct_Peer *Peer, int Type) {
   if (Peer) {
-    int PNr = Peer->Id;
-    int Id  = Peer->Id;
- 
+    int PNr = Peer->PNumber;
+
     for (int i=0; i<MAX_PEERS; i++) {
-      PNr++; if (PNr == MAX_PEERS) { PNr = 0; Id = -1; }
-      
-      Serial.print("ID orig: "); Serial.print(Peer->Id);
-      Serial.print("untersucht: "); Serial.println((P[PNr].Name));
-      Serial.print(", Peer->Id"); Serial.print(PNr); Serial.print("="); Serial.print(P[PNr].Id);
-      Serial.print(", Peer->Type"); Serial.print(PNr); Serial.print("="); Serial.println(P[PNr].Type);
-      
-      if ((P[PNr].Type == Type)                   and (P[PNr].Id > Id)) return &P[PNr];
-      if ((P[PNr].Type) and (Type == MODULE_ALL)  and (P[PNr].Id > Id)) return &P[PNr];
+      PNr++; if (PNr == MAX_PEERS) { PNr = 0; }
+      if  (P[PNr].Type == Type)                   return &P[PNr];
+      if ((P[PNr].Type) and (Type == MODULE_ALL)) return &P[PNr];
     }
   }
   return Peer;
 }
 struct_Peer *FindPrevPeer  (struct_Peer *Peer, int Type) {
   if (Peer) {
-    int PNr = Peer->Id;
-    int Id  = Peer->Id;
+    int PNr = Peer->PNumber;
     
     for (int i=0; i<MAX_PEERS; i++) {
-      PNr--; if (PNr == -1) { PNr = MAX_PEERS-1; Id = MAX_PEERS; }
-        
-      if ((P[PNr].Type == Type)                  and (P[PNr].Id < Id)) return &P[PNr];
-      if ((P[PNr].Type) and (Type == MODULE_ALL) and (P[PNr].Id < Id)) return &P[PNr];
+      PNr--; if (PNr == -1) { PNr = MAX_PEERS-1; }
+      if  (P[PNr].Type == Type)                   return &P[PNr];
+      if ((P[PNr].Type) and (Type == MODULE_ALL)) return &P[PNr];
     }
   }
   return Peer;
@@ -1576,8 +1575,14 @@ int          FindHighestPeerId() {
 int  TouchedField(void) {
   for (int Row=0; Row<MULTI_SCREEN_ROWS; Row++) {
     for (int Col=0; Col<MULTI_SCREEN_COLS; Col++) {
-      if ((Touch.x1<(TFT.width/MULTI_SCREEN_COLS*Col)) and (Touch.y1<(TFT.width/MULTI_SCREEN_COLS*(Col+1)))) return (Row*MULTI_SCREEN_COLS+MULTI_SCREEN_COLS);
+      if ((Touch.x1>(TFT.width()/MULTI_SCREEN_COLS*Col)) and 
+          (Touch.x1<(TFT.width()/MULTI_SCREEN_COLS*(Col+1))) and 
+          (Touch.y1>(TFT.height()/MULTI_SCREEN_ROWS*Row)) and 
+          (Touch.y1<(TFT.height()/MULTI_SCREEN_ROWS*(Row+1))) 
+          ) 
+          return (Row*MULTI_SCREEN_COLS+Col);
     }
+  }
   return NOT_FOUND;
 }
 int  TouchRead() {
