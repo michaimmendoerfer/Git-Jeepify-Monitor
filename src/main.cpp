@@ -559,55 +559,68 @@ void SavePeers() {
   
   char Buf[50] = {}; String BufS;
 
-  PeerCount = 0;
+  PeerCount = -1;
 
   for (int Pi=0; Pi< MAX_PEERS; Pi++) {
     if (P[Pi].Type > 0) {
       PeerCount++;
       //P.Type...
-      sprintf(Buf, "Type-%d", Pi);
+      sprintf(Buf, "P%d-Type", Pi);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].Type);
       if (preferences.getInt(Buf, 0) != P[Pi].Type) preferences.putInt(Buf, P[Pi].Type);
       
       //P.Id
-      sprintf(Buf, "Id-%d", Pi);
+      sprintf(Buf, "P%d-Id", Pi);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].Id);
       if (preferences.getInt(Buf, 0) != P[Pi].Id) preferences.putInt(Buf, P[Pi].Id);
       
       //P.BroadcastAddress
-      sprintf(Buf, "MAC-%d", Pi);
+      sprintf(Buf, "P%d-MAC", Pi);
       preferences.putBytes(Buf, P[Pi].BroadcastAddress, 6);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); PrintMAC(P[Pi].BroadcastAddress); Serial.println();
       
       //P.Name
-      sprintf(Buf, "Name-%d", Pi);
+      sprintf(Buf, "P%d-Name", Pi);
       BufS = P[Pi].Name;
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(BufS);
-      if (preferences.getString(Buf, "EmptyName") != BufS) preferences.putString(Buf, BufS);
+      if (preferences.getString(Buf, "") != BufS) preferences.putString(Buf, BufS);
 
       for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
-        sprintf(Buf, "P%d-SensName%d", Pi, Si);
+        sprintf(Buf, "P%d-Periph%d-Name", Pi, Si);
         BufS = P[Pi].S[Si].Name;
         Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Name);
-        if (preferences.getString(Buf, "EmptyName") != BufS) preferences.putString(Buf, BufS);
+        if (preferences.getString(Buf, "") != BufS) preferences.putString(Buf, BufS);
         
-        sprintf(Buf, "P%d-SensType%d", Pi, Si);
+        sprintf(Buf, "P%d-Periph%d-Type", Pi, Si);
         Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Type);
         if (preferences.getInt(Buf, 0) != P[Pi].S[Si].Type) preferences.putInt(Buf, P[Pi].S[Si].Type);
 
-        sprintf(Buf, "P%d-SensId%d", Pi, Si);
+        sprintf(Buf, "P%d-Periph%d-Id", Pi, Si);
         Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Id);
         if (preferences.getInt(Buf, 0) != P[Pi].S[Si].Id) preferences.putInt(Buf, P[Pi].S[Si].Id);
-
       }
     }
   }
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    if !((Screen[s].Name != "") or Screen[s].Name = NULL)) {
+      sprintf(Buf, "S%d-Name", s);
+      if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
+      sprintf(Buf, "S%d-PeerId", s);
+      if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId); 
+      sprintf(Buf, "S%d-Id", s);
+      if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);      
   
+      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+          if (Screen[s].PeriphId[p]) {
+              sprintf(Buf, "S%d-PeriphId%d", s, p);
+              if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
+          }
+      }
+    }
+  }
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
   
   preferences.end();
-
-  SavePeriphMulti();
 }
 void GetPeers() {
   preferences.begin("JeepifyPeers", true);
@@ -616,65 +629,49 @@ void GetPeers() {
   
   PeerCount = 0;
   for (int Pi=0; Pi<MAX_PEERS; Pi++) {
-    // Peer gefüllt?
-    sprintf(Buf, "Type-%d", Pi);
-    Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
-    if (preferences.getInt(Buf) > 0) {
-      PeerCount++;
-
       // P.Type
-      P[Pi].Type = preferences.getInt(Buf);
-      if (ActivePeer == NULL) ActivePeer = &P[Pi];
-      if (isPDC(&P[Pi]) and (ActivePDC == NULL)) ActivePDC = &P[Pi];
-      if (isBat(&P[Pi]) and (ActiveBat == NULL)) ActiveBat = &P[Pi];
-      
+      sprintf(Buf, "P%d-Type", Pi); P[Pi].Type = preferences.getInt(Buf, 0);
+      if (P[Pi].Type) {
+        PeerCount++;
+        if (ActivePeer == NULL) ActivePeer = &P[Pi];
+        if (isPDC(&P[Pi]) and (ActivePDC == NULL)) ActivePDC = &P[Pi];
+        if (isBat(&P[Pi]) and (ActiveBat == NULL)) ActiveBat = &P[Pi];
+      }
+        
       // P.Id
-      sprintf(Buf, "Id-%d", Pi);
-      Serial.print(Buf); Serial.print(" = "); Serial.println(preferences.getInt(Buf));
-      P[Pi].Id = preferences.getInt(Buf);
-      
+      sprintf(Buf, "P%d-Id", Pi); P[Pi].Id = preferences.getInt(Buf, 0);
       P[Pi].PNumber = Pi;
 
       // P.BroadcastAdress
-      sprintf(Buf, "MAC-%d", Pi);
-      preferences.getBytes(Buf, P[Pi].BroadcastAddress, 6);
+      sprintf(Buf, "P%d-MAC", Pi); preferences.getBytes(Buf, P[Pi].BroadcastAddress, 6);
       
       // P.Name
-      sprintf(Buf, "Name-%d", Pi);
-      BufS = preferences.getString(Buf);
+      sprintf(Buf, "P%d-Name", Pi); BufS = preferences.getString(Buf, "");
       strcpy(P[Pi].Name, BufS.c_str());
 
-      Serial.print(Pi); 
-      Serial.print(": Id="); Serial.print(P[Pi].Id); 
-      Serial.print(": Type="); Serial.print(P[Pi].Type); 
-      Serial.print(", Name="); Serial.print(P[Pi].Name);
-      Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
-      Serial.println();
-
+      P[Pi].TSLastSeen = millis();
+      
       for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
-        sprintf(Buf, "P%d-SensName%d", Pi, Si);
+        sprintf(Buf, "P%d-Periph%d-Name", Pi, Si);
         BufS = preferences.getString(Buf);
         strcpy(P[Pi].S[Si].Name, BufS.c_str());
 
-        sprintf(Buf, "P%d-SensType%d", Pi, Si);
+        sprintf(Buf, "P%d-Periph%d-Type", Pi, Si);
         P[Pi].S[Si].Type = preferences.getInt(Buf, 0);
         
-        sprintf(Buf, "P%d-SensId%d", Pi, Si);
+        sprintf(Buf, "P%d-Periph%d-Id", Pi, Si);
         P[Pi].S[Si].Id = preferences.getInt(Buf, 0);
         
         P[Pi].S[Si].PeerId = P[Pi].Id;
         
-        sprintf(Buf, "SName%d=%s, SType%d=%d, SId%d=%d, SId.PeerId=%d", Si, BufS, Si, P[Pi].S[Si].Type, Si, P[Pi].S[Si].Id, P[Pi].S[Si].PeerId);
+        sprintf(Buf, "Periph %d: Name=%s, Type=%d, Id=%d, PeerId=%d", Si, BufS, P[Pi].S[Si].Type, P[Pi].S[Si].Id, P[Pi].S[Si].PeerId);
         Serial.println(Buf);
 
         if (isSensor(&P[Pi].S[Si]) and (ActiveSens == NULL))   ActiveSens   = &P[Pi].S[Si];
         if (isSwitch(&P[Pi].S[Si]) and (ActiveSwitch == NULL)) ActiveSwitch = &P[Pi].S[Si];
-
       }
-      P[Pi].TSLastSeen = millis();
-      
       if (DebugMode) {
-        Serial.print(Pi); Serial.print(": Type="); Serial.print(P[Pi].Type); 
+        Serial.print(Pi); Serial.print(":Peer : Type="); Serial.print(P[Pi].Type); 
         Serial.print(", Name="); Serial.print(P[Pi].Name);
         Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
         Serial.println();
@@ -685,6 +682,7 @@ void GetPeers() {
           Serial.println(P[Pi].S[Si].Type);
         }
       }
+
     }
   }
   preferences.end();

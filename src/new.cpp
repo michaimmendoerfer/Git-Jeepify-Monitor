@@ -43,34 +43,27 @@ void SavePeers() {
         sprintf(Buf, "P%d-Periph%d-Id", Pi, Si);
         Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[Pi].S[Si].Id);
         if (preferences.getInt(Buf, 0) != P[Pi].S[Si].Id) preferences.putInt(Buf, P[Pi].S[Si].Id);
-
       }
-  
-      for (int s=0; s<MULTI_SCREENS; s++) {
-        
-        for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-            if (Screen[s].PeriphId[p]) {
-                sprintf(Buf, "S%d-Name", s);
-      if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
-      sprintf(Buf, "S%d-Id", s);
-      if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);
-      sprintf(Buf, "S%d-PeerId", s);
-      if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId);
-      
-      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-        sprintf(Buf, "S%d-PeriphId%d", s, p);
-        if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
-      }
-    }  
-  }
-  preferences.end();
-
     }
   }
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    if !((Screen[s].Name != "") or Screen[s].Name = NULL)) {
+      sprintf(Buf, "S%d-Name", s);
+      if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
+      sprintf(Buf, "S%d-PeerId", s);
+      if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId); 
+      sprintf(Buf, "S%d-Id", s);
+      if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);      
   
+      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+          if (Screen[s].PeriphId[p]) {
+              sprintf(Buf, "S%d-PeriphId%d", s, p);
+              if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
+          }
+      }
+    }
+  }
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
   
-  SavePeriphMulti();
-
   preferences.end();
 }
