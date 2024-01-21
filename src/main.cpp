@@ -1,7 +1,7 @@
 #define NODE_NAME "Monitor-1"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 1.13"
+#define VERSION   "V 1.14"
 
 #pragma region Includes
 #include <Arduino.h>
@@ -77,7 +77,6 @@ struct_Peer   *FindFirstPeer  (int Type=MODULE_ALL);
 struct_Peer   *FindNextPeer   (struct_Peer *Peer, int Type=MODULE_ALL);
 struct_Peer   *FindPrevPeer   (struct_Peer *Peer, int Type=MODULE_ALL);
 int            FindHighestPeerId();
-struct_Peer   *SelectPeer();
 struct_Periph *SelectPeriph();
 
 //int    TouchQuarter(void);
@@ -250,6 +249,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
                  Screen[s].PeriphId[SNr] = Peer->S[SNr].Id;
                  Screen[s].S[SNr] = &Peer->S[SNr];
               }
+              break;
             }
           }
 
@@ -308,7 +308,11 @@ void setup() {
   
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
   
-  for (int s=0; s<MULTI_SCREENS; s++) Screen[s].Id = s;
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    Screen[s].Id = s;
+    if ((s< MAX_PEERS) and (Screen[s].Name == "")) sprintf(Screen[s].Name, "Peer-%d", s+1);
+    if (s>=MAX_PEERS)                              sprintf(Screen[s].Name, "Multi-%d", s-MAX_PEERS+1);
+  }
 
   Mode = S_MENU;
 
@@ -408,7 +412,9 @@ void loop() {
                                 ScreenChanged = true; 
                                 break;
               case SWIPE_UP:    Mode = S_MENU; break;
-              case SWIPE_DOWN:  Mode = S_MENU; break;
+              case SWIPE_DOWN:  ActiveMultiScreen = (ActiveMultiScreen < 10) ? 10 : 0; 
+                                ScreenChanged = true; 
+                                break;
             }
             break;
           case S_PERI_SEL: 
@@ -524,12 +530,11 @@ void ScreenUpdate() {
       case S_SENSOR4:   ShowMulti(&Screen[ActiveMultiScreen]);  break;  
       case S_SWITCH1:   ShowSingle(ActiveSwitch);  break;   
       case S_SWITCH4:   ShowMulti(&Screen[ActiveMultiScreen]);  break; 
-      case S_MULTI:     ShowMulti(&Screen[9]);   break;
+      case S_MULTI:     ShowMulti(&Screen[ActiveMultiScreen]);   break;
       case S_JSON:      ShowJSON();     break;  
       case S_SETTING:   ShowSettings(); break;
       case S_PEER:      ShowPeer();     break;
       case S_PEERS:     ShowPeers();    break;
-      case S_PEER_SEL:  SelectPeer();   break;
       case S_PERI_SEL:  SelectPeriph(); break;
       case S_CAL_VOL:   ShowEichenVolt();   break;  
       case S_MENU:      ShowMenu();     break;        
@@ -867,7 +872,7 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
   for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) if (ActiveScreen->S[SNr]->Changed) Show = true;
 
   if (Show) {
-    //ScreenChanged = true;     
+    ScreenChanged = true;     
     OldMode = Mode;        
 
     TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, false);
@@ -1707,9 +1712,8 @@ void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, i
   int EndAngle     = 300;
   int Range = Max-Min;
   
-  //LittleGauge(TempValue[Si], 72+Col*120, 75+Row*120, 0, 35, 20, 30);
-          
   float ToGo = StartAngle + (EndAngle-StartAngle)/Range*(Value-Min);
+  if (ToGo <= StartAngle) ToGo = StartAngle+1;
 
   float YellowAngle = StartAngle + (EndAngle-StartAngle)/Range*StartYellow;
   float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
