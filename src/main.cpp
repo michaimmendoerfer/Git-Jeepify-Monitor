@@ -1,7 +1,7 @@
-#define NODE_NAME "Jeep_Monitor_V2"
+#define NODE_NAME "Monitor-1"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 1.12"
+#define VERSION   "V 1.13"
 
 #pragma region Includes
 #include <Arduino.h>
@@ -23,8 +23,6 @@ void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
 
 void   SavePeers();
 void   GetPeers();
-void   SavePeriphMulti();
-void   GetPeriphMulti();
 void   ReportPeers();
 void   RegisterPeers();
 void   ClearPeers();
@@ -174,7 +172,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   String BufS; char Buf[10] = {};
   
   Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(); Serial.println(jsondata);
-  
+  jsondataBuf = jsondata;
   DeserializationError error = deserializeJson(doc, jsondata);
 
   if (!error) {
@@ -334,7 +332,7 @@ void loop() {
                     else  Mode = S_SENSOR1;
                     break;
                   case 1: 
-                    if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePeer, SENS_TYPE_SWITCH);
+                    if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePeer, SENS_TYPE_SWITCH, false);
                     if (!ActiveSwitch) ShowMessage("No Switch");
                     else Mode = S_SWITCH1;
                     break;
@@ -403,9 +401,11 @@ void loop() {
                 break;
               case SWIPE_LEFT:  if  (ActiveMultiScreen < MULTI_SCREENS-1) ActiveMultiScreen++;
                                 else ActiveMultiScreen = 0; 
+                                ScreenChanged = true;
                                 break;
               case SWIPE_RIGHT: if  (ActiveMultiScreen == 0) ActiveMultiScreen = MULTI_SCREENS-1;
-                                else ActiveMultiScreen--; 
+                                else ActiveMultiScreen--;
+                                ScreenChanged = true; 
                                 break;
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
@@ -413,7 +413,7 @@ void loop() {
             break;
           case S_PERI_SEL: 
             switch (Touch.Gesture) {
-              case CLICK:       
+              case LONG_PRESS:       
                 Screen[ActiveMultiScreen].PeriphId[PeriphToFill] = ActivePeriph->Id;
                 Screen[ActiveMultiScreen].S[PeriphToFill] = ActivePeriph;
                 ScreenChanged = true;
@@ -437,7 +437,7 @@ void loop() {
                                 else if (ButtonHit( 7)) { ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING; }
                                 else if (ButtonHit(11)) { if (DebugMode) SetDebugMode(false); else SetDebugMode(true); }
                                 else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
-                                else if (ButtonHit(13)) { SavePeriphMulti(); ChangesSaved = true; ScreenChanged = true; }
+                                else if (ButtonHit(13)) { SavePeers(); ChangesSaved = true; ScreenChanged = true; }
                                 break;
               case LONG_PRESS:  if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
               case SWIPE_UP:    Mode = S_MENU; break;
@@ -459,20 +459,6 @@ void loop() {
               case SWIPE_RIGHT: ActivePeer = FindPrevPeer(ActivePeer); ScreenChanged = true; break; 
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
-            }
-            break;
-          case S_PEER_SEL   : 
-            switch (Touch.Gesture) {
-              case CLICK:       
-                ActivePeer = ActiveSelection; 
-                if (isBat(ActivePeer)) ActiveBat = ActivePeer;
-                if (isPDC(ActivePeer)) ActivePDC = ActivePeer;
-                ActiveSens = NULL;
-                ActiveSwitch = NULL;
-                Mode = S_MENU; 
-                break;
-              case SWIPE_UP:    ActiveSelection = FindPrevPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
-              case SWIPE_DOWN:  ActiveSelection = FindNextPeer(ActiveSelection); Serial.println(ActiveSelection->Name); break;
             }
             break;
           case S_PEERS: 
@@ -602,20 +588,18 @@ void SavePeers() {
     }
   }
   for (int s=0; s<MULTI_SCREENS; s++) {
-    if !((Screen[s].Name != "") or Screen[s].Name = NULL)) {
-      sprintf(Buf, "S%d-Name", s);
-      if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
-      sprintf(Buf, "S%d-PeerId", s);
-      if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId); 
-      sprintf(Buf, "S%d-Id", s);
-      if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);      
-  
-      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-          if (Screen[s].PeriphId[p]) {
-              sprintf(Buf, "S%d-PeriphId%d", s, p);
-              if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
-          }
-      }
+    sprintf(Buf, "S%d-Name", s);
+    if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
+    sprintf(Buf, "S%d-PeerId", s);
+    if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId); 
+    sprintf(Buf, "S%d-Id", s);
+    if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);      
+
+    for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+        if (Screen[s].PeriphId[p]) {
+            sprintf(Buf, "S%d-PeriphId%d", s, p);
+            if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
+        }
     }
   }
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
@@ -629,140 +613,71 @@ void GetPeers() {
   
   PeerCount = 0;
   for (int Pi=0; Pi<MAX_PEERS; Pi++) {
-      // P.Type
-      sprintf(Buf, "P%d-Type", Pi); P[Pi].Type = preferences.getInt(Buf, 0);
-      if (P[Pi].Type) {
-        PeerCount++;
-        if (ActivePeer == NULL) ActivePeer = &P[Pi];
-        if (isPDC(&P[Pi]) and (ActivePDC == NULL)) ActivePDC = &P[Pi];
-        if (isBat(&P[Pi]) and (ActiveBat == NULL)) ActiveBat = &P[Pi];
-      }
-        
-      // P.Id
-      sprintf(Buf, "P%d-Id", Pi); P[Pi].Id = preferences.getInt(Buf, 0);
-      P[Pi].PNumber = Pi;
-
-      // P.BroadcastAdress
-      sprintf(Buf, "P%d-MAC", Pi); preferences.getBytes(Buf, P[Pi].BroadcastAddress, 6);
+    // P.Type
+    sprintf(Buf, "P%d-Type", Pi); P[Pi].Type = preferences.getInt(Buf, 0);
+    if (P[Pi].Type) {
+      PeerCount++;
+      if (ActivePeer == NULL) ActivePeer = &P[Pi];
+      if (isPDC(&P[Pi]) and (ActivePDC == NULL)) ActivePDC = &P[Pi];
+      if (isBat(&P[Pi]) and (ActiveBat == NULL)) ActiveBat = &P[Pi];
+    }
       
-      // P.Name
-      sprintf(Buf, "P%d-Name", Pi); BufS = preferences.getString(Buf, "");
-      strcpy(P[Pi].Name, BufS.c_str());
+    // P.Id
+    sprintf(Buf, "P%d-Id", Pi); P[Pi].Id = preferences.getInt(Buf, 0);
+    P[Pi].PNumber = Pi;
 
-      P[Pi].TSLastSeen = millis();
+    // P.BroadcastAdress
+    sprintf(Buf, "P%d-MAC", Pi); preferences.getBytes(Buf, P[Pi].BroadcastAddress, 6);
+    
+    // P.Name
+    sprintf(Buf, "P%d-Name", Pi); BufS = preferences.getString(Buf, "");
+    strcpy(P[Pi].Name, BufS.c_str());
+
+    P[Pi].TSLastSeen = millis();
+    
+    for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
+      sprintf(Buf, "P%d-Periph%d-Name", Pi, Si);
+      BufS = preferences.getString(Buf);
+      strcpy(P[Pi].S[Si].Name, BufS.c_str());
+
+      sprintf(Buf, "P%d-Periph%d-Type", Pi, Si);
+      P[Pi].S[Si].Type = preferences.getInt(Buf, 0);
       
-      for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
-        sprintf(Buf, "P%d-Periph%d-Name", Pi, Si);
-        BufS = preferences.getString(Buf);
-        strcpy(P[Pi].S[Si].Name, BufS.c_str());
-
-        sprintf(Buf, "P%d-Periph%d-Type", Pi, Si);
-        P[Pi].S[Si].Type = preferences.getInt(Buf, 0);
-        
-        sprintf(Buf, "P%d-Periph%d-Id", Pi, Si);
-        P[Pi].S[Si].Id = preferences.getInt(Buf, 0);
-        
-        P[Pi].S[Si].PeerId = P[Pi].Id;
-        
+      sprintf(Buf, "P%d-Periph%d-Id", Pi, Si);
+      P[Pi].S[Si].Id = preferences.getInt(Buf, 0);
+      
+      P[Pi].S[Si].PeerId = P[Pi].Id;
+      
+      if (DebugMode) {
         sprintf(Buf, "Periph %d: Name=%s, Type=%d, Id=%d, PeerId=%d", Si, BufS, P[Pi].S[Si].Type, P[Pi].S[Si].Id, P[Pi].S[Si].PeerId);
         Serial.println(Buf);
-
-        if (isSensor(&P[Pi].S[Si]) and (ActiveSens == NULL))   ActiveSens   = &P[Pi].S[Si];
-        if (isSwitch(&P[Pi].S[Si]) and (ActiveSwitch == NULL)) ActiveSwitch = &P[Pi].S[Si];
-      }
-      if (DebugMode) {
-        Serial.print(Pi); Serial.print(":Peer : Type="); Serial.print(P[Pi].Type); 
-        Serial.print(", Name="); Serial.print(P[Pi].Name);
-        Serial.print(", MAC="); PrintMAC(P[Pi].BroadcastAddress);
-        Serial.println();
-        for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
-          sprintf(Buf, "P%d-SensName%d = ", Pi, Si);
-          Serial.print(Buf), Serial.println(P[Pi].S[Si].Name);
-          sprintf(Buf, "P%d-SensType%d = ", Pi, Si);
-          Serial.println(P[Pi].S[Si].Type);
-        }
       }
 
+      if (isSensor(&P[Pi].S[Si]) and (ActiveSens == NULL))   ActiveSens   = &P[Pi].S[Si];
+      if (isSwitch(&P[Pi].S[Si]) and (ActiveSwitch == NULL)) ActiveSwitch = &P[Pi].S[Si];
     }
   }
-  preferences.end();
-  
-  GetPeriphMulti();
-}
-void SavePeriphMulti() {
-  char Buf[30];
-  
-  Serial.println("Save PeriphMulti...");
-  preferences.begin("JeepifyPeers", false);
-  
-  for (int s=0; s<MULTI_SCREENS; s++) {
-    if (Screen[s].PeerId) {
-      sprintf(Buf, "S%d-Name", s);
-      if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
-      sprintf(Buf, "S%d-Id", s);
-      if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);
-      sprintf(Buf, "S%d-PeerId", s);
-      if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId);
-      
-      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-        sprintf(Buf, "S%d-PeriphId%d", s, p);
-        if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
-      }
-    }  
-  }
-  preferences.end();
-}
-void GetPeriphMulti() {
-  char Buf[30]; String BufS;
 
-  preferences.begin("JeepifyPeers", true);
-  
   for (int s=0; s<MULTI_SCREENS; s++) {
     sprintf(Buf, "S%d-Name", s);
-    if (preferences.getString(Buf,"") != "") {
-      BufS = preferences.getString(Buf);
-      strcpy(Screen[s].Name, BufS.c_str());
-      
-      sprintf(Buf, "S%d-Id", s);
-      Screen[s].Id = preferences.getInt(Buf,0);
-      
-      sprintf(Buf, "S%d-PeerId", s);
-      Screen[s].PeerId = preferences.getInt(Buf,0);
-      Screen[s].Peer = FindPeerById(Screen[s].PeerId);
-      
-      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-        sprintf(Buf, "S%d-PeriphId%d", s, p);
-        Screen[s].PeriphId[p] = preferences.getInt(Buf,0);
-        Screen[s].S[p] = FindPeriphById(Screen[s].Peer, Screen[s].PeriphId[p]);
-      }
+    BufS = preferences.getString(Buf);
+    if (BufS) strcpy(Screen[s].Name, BufS.c_str());
+    
+    sprintf(Buf, "S%d-Id", s);
+    Screen[s].Id = preferences.getInt(Buf,0);
+    
+    sprintf(Buf, "S%d-PeerId", s);
+    Screen[s].PeerId = preferences.getInt(Buf,0);
+    Screen[s].Peer = FindPeerById(Screen[s].PeerId);
+    
+    for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+      sprintf(Buf, "S%d-PeriphId%d", s, p);
+      Screen[s].PeriphId[p] = preferences.getInt(Buf,0);
+      Screen[s].S[p] = FindPeriphById(Screen[s].Peer, Screen[s].PeriphId[p]);
     }  
   }
+
   preferences.end();
-}
-void ReportPeers() {
-  TFT.fillScreen(TFT_BLACK);
-  TFT.setCursor(0, 0, 2);
-  TFT.setTextColor(TFT_WHITE,TFT_BLACK);  TFT.setTextSize(1);
-  
-  TFT.println("Peer-Report:");
-  TFT.println();
-
-  for (int Pi=0; Pi<MAX_PEERS; Pi++) {
-    if (DebugMode) {
-      Serial.println(P[Pi].Name);
-      Serial.println(P[Pi].Type);
-      Serial.print("MAC: "); PrintMAC(P[Pi].BroadcastAddress);
-      Serial.println();
-    }
-    
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           P[Pi].BroadcastAddress[0], P[Pi].BroadcastAddress[1], P[Pi].BroadcastAddress[2], P[Pi].BroadcastAddress[3], P[Pi].BroadcastAddress[4], P[Pi].BroadcastAddress[5]);
-
-    TFT.print(P[Pi].Name); TFT.print(" - Type:"); TFT.print(P[Pi].Type);
-    TFT.print(" - MAC:"); TFT.println(macStr);
-  }
-  //delay(5000);
 }
 void RegisterPeers() {
   esp_now_peer_info_t peerInfo;
@@ -1075,6 +990,7 @@ void ShowPairing() {
 }
 void ShowJSON() {
   StaticJsonDocument<500> doc;
+  Serial.println("Show-JSON");
   if ((jsondataBuf != "") or (Mode != OldMode)) {
     ScreenChanged = true;
     OldMode = Mode;
@@ -1283,51 +1199,6 @@ void SetMsgIndicator() {
 }
 #pragma endregion System-Screens
 #pragma region Peer/Periph-Checks
-bool isPDC(struct_Peer *Peer) {
-  if (Peer) return ((Peer->Type == SWITCH_1_WAY) or (Peer->Type == SWITCH_2_WAY) or 
-                    (Peer->Type == SWITCH_4_WAY) or (Peer->Type == SWITCH_8_WAY) or
-                    (Peer->Type == PDC_SENSOR_MIX));   
-  return false;   
-}
-bool isBat(struct_Peer *Peer) {
-  if (Peer) return ((Peer->Type == BATTERY_SENSOR) or (Peer->Type == PDC_SENSOR_MIX));
-  return false;
-}
-bool isSwitch(struct_Periph *Periph) {
-  if (Periph) return (Periph->Type == SENS_TYPE_SWITCH); 
-  return false;     
-}
-bool isSensor(struct_Periph *Periph) {
-  if (Periph) return((Periph->Type == SENS_TYPE_AMP) or (Periph->Type == SENS_TYPE_VOLT));
-  return false;
-}
-bool isSensorVolt(struct_Periph *Periph) {
-  if (Periph) return (Periph->Type == SENS_TYPE_VOLT);
-  return false;
-}
-bool isSensorAmp(struct_Periph *Periph) {
-  if (Periph) return (Periph->Type == SENS_TYPE_AMP);
-  return false;
-}
-bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
-  int ret = false;
-  if (Peer) {
-    if (Stop == 0) Stop = Start;
-    for (int Si=Start; Si++; Si<Stop+1) {
-      if (Si == MAX_PERIPHERALS) break;
-      if (Peer->S[Si].Changed) ret = true;
-    }
-  }
-  return ret;
-}
-struct_Periph *FindPeriphById(struct_Peer *Peer, uint16_t Id) {
-  if (Peer) {
-    for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
-      if (Peer->S[SNr].Id == Id) return &Peer->S[SNr];
-    }
-  }
-  return NULL;
-}
 struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual){
   if (!Peer) Peer = FindFirstPeer();
    if (Peer) {
@@ -1341,9 +1212,10 @@ struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual){
           case SENS_TYPE_SWITCH: if (isSwitch(&Peer->S[SNr]))     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
         }
       }
+      if (OnlyActual) return NULL;
+      struct_Peer *TempPeer = FindNextPeer(Peer);
+      if (TempPeer == Peer) return NULL; else Peer = TempPeer;
     }
-    if (OnlyActual) return NULL;
-    Peer = FindNextPeer(Peer);
   }
   return NULL;
 }
@@ -1357,82 +1229,124 @@ struct_Periph *FindNextPeriph (struct_Periph *Periph, int Type, bool OnlyActual)
     for (int SNr=Periph->Id; SNr < MAX_PERIPHERALS; SNr++) {
       switch (Type) {
           case SENS_TYPE_ALL:
-            if (Peer->S[SNr].Type > 0) { ActivePeer = Peer; return &Peer->S[SNr]; break;}
+            if (Peer->S[SNr].Type > 0)                  { ActivePeer = Peer; return &Peer->S[SNr]; break;}
             break;
           case SENS_TYPE_SENS:  
-            if (Peer->S[SNr].Type == SENS_TYPE_AMP)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-            if (Peer->S[SNr].Type == SENS_TYPE_VOLT) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
             break;
-          default:
-            if (Peer->S[SNr].Type == Type) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          case SENS_TYPE_SWITCH:  
+            if (Peer->S[SNr].Type == SENS_TYPE_SWITCH)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+          case SENS_TYPE_AMP:  
+            if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+          case SENS_TYPE_VOLT:  
+            if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
             break;
       }
     }
 
-    if (!OnlyActual) {
-      for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+      if (!OnlyActual) {
         struct_Peer *TempPeer = FindNextPeer(Peer);
-        if (TempPeer != Peer) {
-          Peer = TempPeer;
-
-          for (SNr=0; SNr < MAX_PERIPHERALS; SNr++) {
-            switch (Type) {
-              case SENS_TYPE_ALL:
-                if (Peer->S[SNr].Type > 0)               { ActivePeer = Peer; return &Peer->S[SNr]; break;}
-                break;
-              case SENS_TYPE_SENS:  
-                if (Peer->S[SNr].Type == SENS_TYPE_AMP)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-                if (Peer->S[SNr].Type == SENS_TYPE_VOLT) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-                break;
-              default:
-                if (Peer->S[SNr].Type == Type) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-                break;
-            }
-          }
+        if (TempPeer == Peer) return Periph; else Peer = TempPeer;
+      }
+        
+      for (SNr=0; SNr < MAX_PERIPHERALS; SNr++) {
+        switch (Type) {
+          case SENS_TYPE_ALL:
+            if (Peer->S[SNr].Type > 0)                  { ActivePeer = Peer; return &Peer->S[SNr]; break;}
+            break;
+          case SENS_TYPE_SENS:  
+            if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+          case SENS_TYPE_SWITCH:  
+            if (Peer->S[SNr].Type == SENS_TYPE_SWITCH)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+          case SENS_TYPE_AMP:  
+            if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
+          case SENS_TYPE_VOLT:  
+            if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+            break;
         }
-        else return Periph;
       }
     }
-    
-    return Periph;
   }
   return Periph;
 }
-
 struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type, bool OnlyActual){
-  struct_Peer *Peer = FindPeerById(Periph->PeerId);     
+  struct_Peer *Peer = FindPeerById(Periph->PeerId);    
+
   if ((Periph) and (Peer)) {
     if (Type == SENS_TYPE_EQUAL) Type = Periph->Type;
-    
-    int SNr = Periph->Id;
-    int Id  = Periph->Id;
 
-    for (int Pi=0; Pi<MAX_PEERS; Pi++) {
-      for (int i=0; i<MAX_PERIPHERALS; i++) {
-        SNr--; if (SNr == -1) SNr = MAX_PERIPHERALS-1;
-        switch (Type) {
-          case SENS_TYPE_ALL:
-            if (Peer->S[SNr].Id < Id) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-            break;
-          case SENS_TYPE_SENS:  
-            /*Serial.print("ID orig: "); Serial.print(Id);
-            Serial.print(", Peer->SId"); Serial.print(SNr); Serial.print("="); Serial.print(Peer->S[SNr].Id);
-            Serial.print(", Peer->SType"); Serial.print(SNr); Serial.print("="); Serial.println(Peer->S[SNr].Type);
-            */
-            if ((Peer->S[SNr].Type == SENS_TYPE_AMP)  and (Peer->S[SNr].Id < Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-            if ((Peer->S[SNr].Type == SENS_TYPE_VOLT) and (Peer->S[SNr].Id < Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-            break;
-          default:
-            if ((Peer->S[SNr].Type == Type) and (Peer->S[SNr].Id < Id)) { ActivePeer = Peer; return &Peer->S[SNr]; break; }
-            break;
-        }
+    for (int SNr=Periph->Id-2; SNr >= 0; SNr--) { // -1-1 weil Id bei 1 anfängt
+      
+      Serial.print("Peer = "); Serial.println(Peer->Name);
+      Serial.print("Periph = "); Serial.println(Periph->Name);
+      Serial.print("SNr = "); Serial.println(SNr);
+      Serial.print("Orig SNr = "); Serial.println(Periph->Id);
+      
+      switch (Type) {
+        case SENS_TYPE_ALL:
+          if (Peer->S[SNr].Type > 0)                  { ActivePeer = Peer; return &Peer->S[SNr]; break;}
+          break;
+        case SENS_TYPE_SENS:  
+          if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
+        case SENS_TYPE_SWITCH:  
+          if (Peer->S[SNr].Type == SENS_TYPE_SWITCH)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
+        case SENS_TYPE_AMP:  
+          if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
+        case SENS_TYPE_VOLT:  
+          if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
       }
-      if (OnlyActual) return NULL;
-      Peer = FindPrevPeer(Peer);
-      Id = MAX_PERIPHERALS+1; SNr = MAX_PERIPHERALS;
+    }
+  }
+
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    if (!OnlyActual) {
+        struct_Peer *TempPeer = FindNextPeer(Peer);
+        if (TempPeer == Peer) return Periph; else Peer = TempPeer;
+      }
+
+    for (int SNr=MAX_PERIPHERALS-1; SNr>0; SNr--) {
+      switch (Type) {
+        case SENS_TYPE_ALL:
+          if (Peer->S[SNr].Type > 0)                  { ActivePeer = Peer; return &Peer->S[SNr]; break;}
+          break;
+        case SENS_TYPE_SENS:  
+          if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
+        case SENS_TYPE_SWITCH:  
+          if (Peer->S[SNr].Type == SENS_TYPE_SWITCH)  { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
+        case SENS_TYPE_AMP:  
+          if (Peer->S[SNr].Type == SENS_TYPE_AMP)     { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
+        case SENS_TYPE_VOLT:  
+          if (Peer->S[SNr].Type == SENS_TYPE_VOLT)    { ActivePeer = Peer; return &Peer->S[SNr]; break; }
+          break;
+      }
     }
   }
   return Periph;
+}
+struct_Periph *FindPeriphById(struct_Peer *Peer, uint16_t Id) {
+  if (Peer) {
+    for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+      if (Peer->S[SNr].Id == Id) return &Peer->S[SNr];
+    }
+  }
+  return NULL;
 }
 struct_Periph *SelectPeriph() {
   if (!ActivePeer) {
@@ -1465,27 +1379,6 @@ struct_Periph *SelectPeriph() {
         TSScreenRefresh = millis();      
         return (ActivePeriph);
       }
-    }
-  }
-  return NULL;
-}
-struct_Peer   *SelectPeer  () {
-  if (!ActivePeer) ActivePeer = FindFirstPeer();
-  if (ActivePeer) {
-    if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
-      ScreenChanged = true;
-      TFTBuffer.pushImage(0,0, 240, 240, JeepifyMenu);
-      TFTBuffer.fillSmoothRoundRect(50, 50, 140, 140, 10, TFT_LIGHTGREY, TFT_BLACK);
-      TFTBuffer.loadFont(AA_FONT_SMALL);
-
-      TFTBuffer.setTextColor(TFT_RUBICON, TFT_LIGHTGREY);
-      TFTBuffer.setTextDatum(MC_DATUM);
-      TFTBuffer.drawString("-", 120,  80);
-      TFTBuffer.drawString("+", 120, 160);
-      TFTBuffer.drawString(ActiveSelection->Name, 120, 120);
-      
-      TSScreenRefresh = millis();
-      return (ActivePeer);
     }
   }
   return NULL;
@@ -1525,7 +1418,7 @@ struct_Peer *FindEmptyPeer () {
 }
 struct_Peer *FindFirstPeer (int Type) {
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
-    if ( P[PNr].Type == Type)                     return &P[PNr];
+    if ( P[PNr].Type == Type)                   return &P[PNr];
     if ((P[PNr].Type) and (Type == MODULE_ALL)) return &P[PNr];
   }
   return NULL;
@@ -1560,6 +1453,43 @@ int          FindHighestPeerId() {
     if (P[PNr].Id > HighestId) HighestId = P[PNr].Id;
   }
   return HighestId;
+}
+bool isPDC(struct_Peer *Peer) {
+  if (Peer) return ((Peer->Type == SWITCH_1_WAY) or (Peer->Type == SWITCH_2_WAY) or 
+                    (Peer->Type == SWITCH_4_WAY) or (Peer->Type == SWITCH_8_WAY) or
+                    (Peer->Type == PDC_SENSOR_MIX));   
+  return false;   
+}
+bool isBat(struct_Peer *Peer) {
+  if (Peer) return ((Peer->Type == BATTERY_SENSOR) or (Peer->Type == PDC_SENSOR_MIX));
+  return false;
+}
+bool isSwitch(struct_Periph *Periph) {
+  if (Periph) return (Periph->Type == SENS_TYPE_SWITCH); 
+  return false;     
+}
+bool isSensor(struct_Periph *Periph) {
+  if (Periph) return((Periph->Type == SENS_TYPE_AMP) or (Periph->Type == SENS_TYPE_VOLT));
+  return false;
+}
+bool isSensorVolt(struct_Periph *Periph) {
+  if (Periph) return (Periph->Type == SENS_TYPE_VOLT);
+  return false;
+}
+bool isSensorAmp(struct_Periph *Periph) {
+  if (Periph) return (Periph->Type == SENS_TYPE_AMP);
+  return false;
+}
+bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
+  int ret = false;
+  if (Peer) {
+    if (Stop == 0) Stop = Start;
+    for (int Si=Start; Si++; Si<Stop+1) {
+      if (Si == MAX_PERIPHERALS) break;
+      if (Peer->S[Si].Changed) ret = true;
+    }
+  }
+  return ret;
 }
 #pragma endregion Peer/Periph-Checks
 #pragma region Touch-Things
@@ -1925,7 +1855,7 @@ void PrintMAC(const uint8_t * mac_addr){
   Serial.print(macStr);
 }
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) { 
-  Serial.print("\r\nLast Packet Send Status:\t");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  //Serial.print("\r\nLast Packet Send Status:\t");
+  //Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 #pragma endregion Other
