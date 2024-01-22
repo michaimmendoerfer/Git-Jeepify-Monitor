@@ -1,7 +1,7 @@
 #define NODE_NAME "Monitor-1"
 #define NODE_TYPE MONITOR_ROUND
 
-#define VERSION   "V 1.14"
+#define VERSION   "V 1.15"
 
 #pragma region Includes
 #include <Arduino.h>
@@ -23,10 +23,10 @@ void   OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
 
 void   SavePeers();
 void   GetPeers();
-void   ReportPeers();
 void   RegisterPeers();
 void   ClearPeers();
 void   ClearInit();
+void   ReportAll();
 
 void   SendPing();
 bool   ToggleSwitch(struct_Periph *Periph);
@@ -303,21 +303,24 @@ void setup() {
   TFTGaugeSwitch.setSwapBytes(false);
   TFTGaugeSwitch.pushImage(0, 0, 100, 100, BtnSmall);
 
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    Screen[s].Id = s;
+    if (s< MAX_PEERS) sprintf(Screen[s].Name, "Peer-%d", s+1);
+    if (s>=MAX_PEERS) sprintf(Screen[s].Name, "Multi-%d", s-MAX_PEERS+1);
+    
+  }
+
   GetPeers();
   RegisterPeers();
   
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
-  
-  for (int s=0; s<MULTI_SCREENS; s++) {
-    Screen[s].Id = s;
-    if ((s< MAX_PEERS) and (Screen[s].Name == "")) sprintf(Screen[s].Name, "Peer-%d", s+1);
-    if (s>=MAX_PEERS)                              sprintf(Screen[s].Name, "Multi-%d", s-MAX_PEERS+1);
-  }
 
   Mode = S_MENU;
 
   TSScreenRefresh = millis();
   TSTouch         = millis();
+  char Buf[100];
+  ReportAll();
 }
 void loop() {
   if (!TSMsgStart) {
@@ -544,6 +547,33 @@ void ScreenUpdate() {
 }
 #pragma endregion Main
 #pragma region Peer-Things
+void ReportAll() {
+  char Buf[100];
+  String BufS;
+
+  preferences.begin("JeepifyPeers", true);
+  
+  for (int Pi=0; Pi< MAX_PEERS; Pi++) {
+    BufS = P[Pi].Name;
+    sprintf(Buf, "%d:%s(%d) - ", Pi, P[Pi].Name, BufS, P[Pi].Type);
+    Serial.print(Buf);
+    for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
+      sprintf(Buf, "P%d:%s(%d), ", Si, P[Pi].S[Si].Name, P[Pi].S[Si].Type);
+      Serial.println(Buf);
+    }
+  }
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    BufS = Screen[s].Name;
+    sprintf(Buf, "S%d:%s, Id=%d, PeerId=%d", s, BufS, Screen[s].Id, Screen[s].PeerId);   
+    Serial.println(Buf);
+    for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+      sprintf(Buf, "PeriphId%d=%d", p, Screen[s].PeriphId[p]);
+      Serial.print(Buf);
+    }
+    Serial.println();
+  }
+  preferences.end();
+}
 void SavePeers() {
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
@@ -592,21 +622,28 @@ void SavePeers() {
       }
     }
   }
+
   for (int s=0; s<MULTI_SCREENS; s++) {
     sprintf(Buf, "S%d-Name", s);
-    if (preferences.getString(Buf,"") != Screen[s].Name)   preferences.putString(Buf, Screen[s].Name);
+    BufS = Screen[s].Name;
+    preferences.putString(Buf, BufS);
+    sprintf(Buf, "Schreibe %s=%s", Buf, BufS; Serial.println(Buf);
+    
     sprintf(Buf, "S%d-PeerId", s);
-    if (preferences.getInt(Buf,0) != Screen[s].PeerId) preferences.putInt(Buf, Screen[s].PeerId); 
+    preferences.putInt(Buf, Screen[s].PeerId); 
+    sprintf(Buf, "Schreibe %s=%d", Buf, Screen[s].PeerId); Serial.println(Buf);
+    
     sprintf(Buf, "S%d-Id", s);
-    if (preferences.getInt(Buf,0) != Screen[s].Id)     preferences.putInt(Buf, Screen[s].Id);      
-
+    preferences.putInt(Buf, Screen[s].Id);
+    sprintf(Buf, "Schreibe %s=%d", Buf, Screen[s].Id); Serial.println(Buf);
+    
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-        if (Screen[s].PeriphId[p]) {
-            sprintf(Buf, "S%d-PeriphId%d", s, p);
-            if (preferences.getInt(Buf,0) != Screen[s].PeriphId[p]) preferences.putInt(Buf, Screen[s].PeriphId[p]);
-        }
+      sprintf(Buf, "S%d-PeriphId%d", s, p);
+      preferences.putInt(Buf, Screen[s].PeriphId[p]);
+      sprintf(Buf, "Schreibe %s=%d", Buf, Screen[s].PeriphId[p]); Serial.println(Buf);
     }
   }
+  
   if (preferences.getInt("PeerCount") != PeerCount) preferences.putInt("PeerCount", PeerCount);
   
   preferences.end();
@@ -656,6 +693,7 @@ void GetPeers() {
       if (DebugMode) {
         sprintf(Buf, "Periph %d: Name=%s, Type=%d, Id=%d, PeerId=%d", Si, BufS, P[Pi].S[Si].Type, P[Pi].S[Si].Id, P[Pi].S[Si].PeerId);
         Serial.println(Buf);
+        delay(100);
       }
 
       if (isSensor(&P[Pi].S[Si]) and (ActiveSens == NULL))   ActiveSens   = &P[Pi].S[Si];
@@ -665,7 +703,7 @@ void GetPeers() {
 
   for (int s=0; s<MULTI_SCREENS; s++) {
     sprintf(Buf, "S%d-Name", s);
-    BufS = preferences.getString(Buf);
+    BufS = preferences.getString(Buf, "");
     if (BufS) strcpy(Screen[s].Name, BufS.c_str());
     
     sprintf(Buf, "S%d-Id", s);
@@ -864,10 +902,15 @@ void ShowSingle(struct_Periph *Periph) {
   } 
 }
 void ShowMulti(struct_MultiScreen *ActiveScreen) {
-  char Buf[20];
+  char Buf[100];
   float TempValue[PERIPH_PER_SCREEN];
   bool Show = false;
 
+  sprintf(Buf, "Showing Screen:%d", ActiveScreen->Id); Serial.println(Buf); 
+  sprintf(Buf, "Name:%s, PeerId:%d, ", ActiveScreen->Name, ActiveScreen->PeerId); Serial.println(Buf); 
+  sprintf(Buf, "PeriphIds: %s - %s", ActiveScreen->S[0]->Name), ActiveScreen->S[1]->Name; Serial.println(Buf); 
+  sprintf(Buf, "PeriphIds: %s - %s", ActiveScreen->S[1]->Name), ActiveScreen->S[2]->Name; Serial.println(Buf); 
+  
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) Show = true;
   for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) if (ActiveScreen->S[SNr]->Changed) Show = true;
 
@@ -1718,9 +1761,6 @@ void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, i
   float YellowAngle = StartAngle + (EndAngle-StartAngle)/Range*StartYellow;
   float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
   
-  //sprintf(Buf, "Value:%f, Range:%d, ToGo:%d, StartYellow:%d(%d), StartRed:%d(%d)", Value, Range, (int)ToGo, StartYellow, (int)YellowAngle, StartRed, (int)RedAngle);
-  //Serial.println(Buf);
-
   TFTBuffer.drawSmoothArc(x, y, R1, R2, ToGo, EndAngle, TFT_DARKGREY, 0x18E3, false);
   if  (ToGo < YellowAngle) TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle, (int)ToGo,        TFT_GREEN,  0x18E3, false);
   if ((ToGo >= YellowAngle) and (ToGo < RedAngle)) {
