@@ -627,7 +627,7 @@ void SavePeers() {
     sprintf(Buf, "S%d-Name", s);
     BufS = Screen[s].Name;
     preferences.putString(Buf, BufS);
-    sprintf(Buf, "Schreibe %s=%s", Buf, BufS; Serial.println(Buf);
+    sprintf(Buf, "Schreibe %s=%s", Buf, BufS); Serial.println(Buf);
     
     sprintf(Buf, "S%d-PeerId", s);
     preferences.putInt(Buf, Screen[s].PeerId); 
