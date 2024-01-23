@@ -564,10 +564,10 @@ void ReportAll() {
   }
   for (int s=0; s<MULTI_SCREENS; s++) {
     BufS = Screen[s].Name;
-    sprintf(Buf, "S%d:%s, Id=%d, PeerId=%d", s, BufS, Screen[s].Id, Screen[s].PeerId);   
+    sprintf(Buf, "S%d:%s, Id=%d - ", s, BufS, Screen[s].Id);   
     Serial.println(Buf);
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-      sprintf(Buf, "PeriphId%d=%d", p, Screen[s].PeriphId[p]);
+      sprintf(Buf, "PeerId%d=%d, PeriphId%d=%d, ", p, Screen[s].PeerId[p], p, Screen[s].PeriphId[p]);
       Serial.print(Buf);
     }
     Serial.println();
