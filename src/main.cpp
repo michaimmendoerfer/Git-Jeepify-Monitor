@@ -240,16 +240,14 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           SendPairingConfirm(Peer);
           
           for (int s=0; s<MAX_PEERS; s++) {
-            if (!Screen[s].PeerId) {
+            if ((!Screen[s].Name) or (!Screen[s].Name == "")) {
               strcpy(Screen[s].Name, doc["Node"]); 
-              Screen[s].isModuleScreen = true;
-              Screen[s].PeerId = Peer->Id;
-              Screen[s].Peer = Peer;
               for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) {
-                 Screen[s].PeriphId[SNr] = Peer->S[SNr].Id;
-                 Screen[s].S[SNr] = &Peer->S[SNr];
+                 Screen[s].PeriphId[SNr] =  Peer->S[SNr].Id;
+                 Screen[s].PeerId[SNr]   =  Peer->S[SNr].PeerId;
+                 Screen[s].S[SNr]        = &Peer->S[SNr];
               }
-              break;
+              break;  // unterbricht die for Schleife?
             }
           }
 
