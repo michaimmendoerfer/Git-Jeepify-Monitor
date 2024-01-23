@@ -799,12 +799,12 @@ void DeletePeer(struct_Peer *Peer) {
   
   for (int s=0; s<MULTI_SCREENS; s++) {
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-      if (Screen[s].S[p]->PeerId == Peer->Id) {
-        Screen[s].S[p] = NULL;
+      if (Screen[s].PeerId[p] == Peer->Id) {
+        Screen[s].PeerId[p] = 0
         Screen[s].PeriphId[p] = 0;
+        Screen[s].S[p] = NULL;
       }
     } 
-    if (Screen[s].PeerId == Peer->Id) Screen[s].PeerId = 0;
   }
 }
 void ClearInit() {
