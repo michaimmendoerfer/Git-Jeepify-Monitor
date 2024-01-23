@@ -240,14 +240,15 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           SendPairingConfirm(Peer);
           
           for (int s=0; s<MAX_PEERS; s++) {
-            if ((!Screen[s].Name) or (!Screen[s].Name == "")) {
+            if ((!Screen[s].Name) or (strcmp(Screen[s].Name, ""))) {
               strcpy(Screen[s].Name, doc["Node"]); 
               for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) {
                  Screen[s].PeriphId[SNr] =  Peer->S[SNr].Id;
                  Screen[s].PeerId[SNr]   =  Peer->S[SNr].PeerId;
                  Screen[s].S[SNr]        = &Peer->S[SNr];
               }
-              break;  // unterbricht die for Schleife?
+              break;
+              Serial.println("Schleife nach break !!!!!!!");  // unterbricht die for Schleife?
             }
           }
 
@@ -303,9 +304,7 @@ void setup() {
 
   for (int s=0; s<MULTI_SCREENS; s++) {
     Screen[s].Id = s;
-    if (s< MAX_PEERS) sprintf(Screen[s].Name, "Peer-%d", s+1);
-    if (s>=MAX_PEERS) sprintf(Screen[s].Name, "Multi-%d", s-MAX_PEERS+1);
-    
+    Screen[s].Name = ""
   }
 
   GetPeers();
@@ -565,7 +564,7 @@ void ReportAll() {
     sprintf(Buf, "S%d:%s, Id=%d - ", s, BufS, Screen[s].Id);   
     Serial.println(Buf);
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-      sprintf(Buf, "PeerId%d=%d, PeriphId%d=%d, ", p, Screen[s].PeerId[p], p, Screen[s].PeriphId[p]);
+      sprintf(Buf, "PeerId%d=%d, PeriphId%d=%d, ", p, Screen[s].S[p]->PeerId, p, Screen[s].PeriphId[p]);
       Serial.print(Buf);
     }
     Serial.println();
