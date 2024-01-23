@@ -899,37 +899,41 @@ void SendCommand(struct_Peer *Peer, String Cmd) {
 #pragma endregion Send-Things
 #pragma region Sensor-Screens
 void ShowSingle(struct_Periph *Periph) {
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (Periph->Changed)) {
-    //ScreenChanged = true;   
-    OldMode = Mode;          
+  if (Periph) {
+    if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode) or (Periph->Changed)) {
+      ScreenChanged = true;   
+      OldMode = Mode;          
 
-    TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
-    TFTBuffer.setTextDatum(MC_DATUM);
-    TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);       
+      TFTBuffer.setTextColor(TFT_WHITE, 0x18E3, true);
+      TFTBuffer.setTextDatum(MC_DATUM);
+      TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);       
+        
+      switch(Periph->Type) {
+        case SENS_TYPE_AMP:    RingMeter(0, 30, "Amp",  GREEN2RED); break;
+        case SENS_TYPE_VOLT:   RingMeter(0, 15, "Volt", GREEN2RED); break;
+        case SENS_TYPE_SWITCH: TFTBuffer.pushImage(0,0, 240, 240, Btn);
+                              TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name,       120,130); TFTBuffer.unloadFont(); 
+                              TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(FindPeerById(Periph->PeerId)->Name, 120,160); TFTBuffer.unloadFont();
+                              if      (Periph->Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
+                              else if (Periph->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
+                              break;
+        default:               ShowMessage("No input"); break;
+      }
       
-    switch(Periph->Type) {
-      case SENS_TYPE_AMP:    RingMeter(0, 30, "Amp",  GREEN2RED); break;
-      case SENS_TYPE_VOLT:   RingMeter(0, 15, "Volt", GREEN2RED); break;
-      case SENS_TYPE_SWITCH: TFTBuffer.pushImage(0,0, 240, 240, Btn);
-                             TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name,       120,130); TFTBuffer.unloadFont(); 
-                             TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(FindPeerById(Periph->PeerId)->Name, 120,160); TFTBuffer.unloadFont();
-                             if      (Periph->Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
-                             else if (Periph->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
-                             break;
-      default:               ShowMessage("No input"); break;
-    }
-    
-    TSScreenRefresh = millis();
-    noInterrupts(); 
-      Periph->Changed = false;  
-    interrupts();
-  } 
+      TSScreenRefresh = millis();
+      noInterrupts(); 
+        Periph->Changed = false;  
+      interrupts();
+    } 
+  }
 }
 void ShowMulti(struct_MultiScreen *ActiveScreen) {
   char Buf[100];
   float TempValue[PERIPH_PER_SCREEN];
   bool Show = false;
 
+  if (ActiveScreen) {
+    
   sprintf(Buf, "Showing Screen:%d", ActiveScreen->Id); Serial.println(Buf); 
   sprintf(Buf, "Name:%s, PeerId:%d, ", ActiveScreen->Name, ActiveScreen->PeerId); Serial.println(Buf); 
   sprintf(Buf, "PeriphIds: %s - %s", ActiveScreen->S[0]->Name), ActiveScreen->S[1]->Name; Serial.println(Buf); 
