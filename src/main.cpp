@@ -86,6 +86,7 @@ int    TouchRead();
 void   PrintMAC(const uint8_t * mac_addr);
 float  mapf(float x, float in_min, float in_max, float out_min, float out_max);
 unsigned int rainbow(byte value);
+void WriteStringToCharArray(String S, char *C);
 #pragma endregion Function_Definitions
 #pragma region Globals
 struct_MultiScreen Screen[MULTI_SCREENS];
@@ -239,19 +240,6 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           
           SendPairingConfirm(Peer);
           
-          for (int s=0; s<MAX_PEERS; s++) {
-            if ((!Screen[s].Name) or (strcmp(Screen[s].Name, ""))) {
-              strcpy(Screen[s].Name, doc["Node"]); 
-              for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) {
-                 Screen[s].PeriphId[SNr] =  Peer->S[SNr].Id;
-                 Screen[s].PeerId[SNr]   =  Peer->S[SNr].PeerId;
-                 Screen[s].S[SNr]        = &Peer->S[SNr];
-              }
-              break;
-              Serial.println("Schleife nach break !!!!!!!");  // unterbricht die for Schleife?
-            }
-          }
-
           ReadyToPair = false; TSPair = 0; Mode = S_MENU;
         }
       }
@@ -304,12 +292,13 @@ void setup() {
 
   for (int s=0; s<MULTI_SCREENS; s++) {
     Screen[s].Id = s;
-    Screen[s].Name = ""
+    sprintf(Screen[s].Name, "Scr-%d", s);
   }
 
   GetPeers();
   RegisterPeers();
-  
+  ReportAll();
+  delay(10000);
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
 
   Mode = S_MENU;
@@ -691,7 +680,7 @@ void GetPeers() {
     
     // P0.Name
     sprintf(Buf, "P%d-Name", Pi); BufS = preferences.getString(Buf, "");
-    strcpy(P[Pi].Name, BufS.c_str());
+    WriteStringToCharArray(BufS, P[Pi].Name);
 
     // P0-Type
     sprintf(Buf, "P%d-Type", Pi); P[Pi].Type = preferences.getInt(Buf, 0);
@@ -705,7 +694,7 @@ void GetPeers() {
     for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
       sprintf(Buf, "P%d-Periph%d-Name", Pi, Si);
       BufS = preferences.getString(Buf);
-      strcpy(P[Pi].S[Si].Name, BufS.c_str());
+      WriteStringToCharArray(BufS, P[Pi].S[Si].Name);
 
       sprintf(Buf, "P%d-Periph%d-Type", Pi, Si);
       P[Pi].S[Si].Type = preferences.getInt(Buf, 0);
@@ -728,7 +717,7 @@ void GetPeers() {
   for (int s=0; s<MULTI_SCREENS; s++) {
     sprintf(Buf, "S%d-Name", s);
     BufS = preferences.getString(Buf, "");
-    if (BufS) strcpy(Screen[s].Name, BufS.c_str());
+    WriteStringToCharArray(BufS, Screen[s].Name);
     
     sprintf(Buf, "S%d-Id", s);
     Screen[s].Id = preferences.getInt(Buf,0);
@@ -739,7 +728,7 @@ void GetPeers() {
       sprintf(Buf, "S%d-PeerId%d", s, p);
       Screen[s].PeerId[p] = preferences.getInt(Buf,0);
       
-      Screen[s].S[p] = FindPeriphById(Screen[s].PeerId[p], Screen[s].PeriphId[p]);
+      Screen[s].S[p] = FindPeriphById(FindPeerById(Screen[s].PeerId[p]), Screen[s].PeriphId[p]);
     }  
   }
 
@@ -797,7 +786,7 @@ void DeletePeer(struct_Peer *Peer) {
   for (int s=0; s<MULTI_SCREENS; s++) {
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {
       if (Screen[s].PeerId[p] == Peer->Id) {
-        Screen[s].PeerId[p] = 0
+        Screen[s].PeerId[p] = 0;
         Screen[s].PeriphId[p] = 0;
         Screen[s].S[p] = NULL;
       }
@@ -931,8 +920,6 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
   float TempValue[PERIPH_PER_SCREEN];
   bool Show = false;
 
-  if (ActiveScreen) {
-    
   sprintf(Buf, "Showing Screen:%d", ActiveScreen->Id); Serial.println(Buf); 
   sprintf(Buf, "Name:%s, PeerId:%d, ", ActiveScreen->Name, ActiveScreen->PeerId); Serial.println(Buf); 
   sprintf(Buf, "PeriphIds: %s - %s", ActiveScreen->S[0]->Name), ActiveScreen->S[1]->Name; Serial.println(Buf); 
@@ -1801,6 +1788,10 @@ void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, i
 }
 #pragma endregion Gauges
 #pragma region Other
+void WriteStringToCharArray(String S, char *C) {
+  int   ArrayLength = S.length()+1;    //The +1 is for the 0x00h Terminator
+  S.toCharArray(C,ArrayLength);
+}
 void SetSleepMode(bool Mode) {
   preferences.begin("JeepifyInit", false);
     SleepMode = Mode;
