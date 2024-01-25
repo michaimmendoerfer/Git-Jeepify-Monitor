@@ -69,7 +69,7 @@ struct_Periph *FindPeriphById (struct_Peer *Peer, uint16_t Id);
 struct_Periph *FindFirstPeriph(struct_Peer *Peer, int Type, bool OnlyActual=false);
 struct_Periph *FindNextPeriph (struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
 struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type=SENS_TYPE_EQUAL, bool OnlyActual=false);
-struct_Peer   *FindPeerByName (String Name);
+struct_Peer   *FindPeerByName (char *Name);
 struct_Peer   *FindPeerById   (uint16_t Id);
 struct_Peer   *FindPeerByMAC  (const uint8_t *MAC);
 struct_Peer   *FindEmptyPeer  ();
@@ -169,7 +169,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   StaticJsonDocument<500> doc; 
   String jsondata = String(buff); 
   
-  String BufS; char Buf[10] = {};
+  String BufS; char Buf[50] = {};
   
   Serial.print("Recieved from:"); PrintMAC(mac); Serial.println(); Serial.println(jsondata);
   jsondataBuf = jsondata;
@@ -293,6 +293,7 @@ void setup() {
   for (int s=0; s<MULTI_SCREENS; s++) {
     Screen[s].Id = s;
     sprintf(Screen[s].Name, "Scr-%d", s);
+    Screen[s].Used = false;
   }
 
   GetPeers();
@@ -305,7 +306,7 @@ void setup() {
 
   TSScreenRefresh = millis();
   TSTouch         = millis();
-  char Buf[100];
+  
   ReportAll();
 }
 void loop() {
@@ -548,15 +549,16 @@ void ReportAll() {
       Serial.println(Buf);
     }
   }
+  
   for (int s=0; s<MULTI_SCREENS; s++) {
-    BufS = Screen[s].Name;
-    sprintf(Buf, "S%d:%s, Id=%d - ", s, BufS, Screen[s].Id);   
-    Serial.println(Buf);
-    for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-      sprintf(Buf, "PeerId%d=%d, PeriphId%d=%d, ", p, Screen[s].S[p]->PeerId, p, Screen[s].PeriphId[p]);
-      Serial.print(Buf);
+    if (Screen[s].Used) {
+      sprintf(Buf, "S%d:%s, Id=%d - ", s, Screen[s].Name, Screen[s].Id); Serial.println(Buf);
+      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
+        sprintf(Buf, "%d: PeerId=%d, PeriphId=%d, ", p, Screen[s].S[p]->PeerId, Screen[s].PeriphId[p]);
+        Serial.print(Buf);
+      }
+      Serial.println();
     }
-    Serial.println();
   }
   preferences.end();
 }
@@ -1445,11 +1447,10 @@ struct_Periph *SelectPeriph() {
   }
   return NULL;
 }
-struct_Peer *FindPeerByName(String Name) {
-  //Serial.print("gesuchter Name: "); Serial.println(Name.c_str());
-  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
-    //Serial.print(P[PNr].Name); Serial.print(" =? "); Serial.println(Name.c_str());
-    if ((String)P[PNr].Name == Name) return &P[PNr];
+struct_Peer *FindPeerByName(char *Name) {
+    for (int PNr=0; PNr<MAX_PEERS; PNr++) {
+    //Serial.print(P[PNr].Name); Serial.print(" =? "); Serial.println(Name);
+    if (strcmp(P[PNr].Name, Name) == 0) return &P[PNr];
   }
   //Serial.println("durchgelaufen");
   return NULL;
@@ -1555,13 +1556,6 @@ bool PeriphChanged(struct_Peer *Peer, int Start, int Stop) {
 }
 #pragma endregion Peer/Periph-Checks
 #pragma region Touch-Things
-/*int  TouchQuarter(void) {
-  if ((Touch.x1<120) and (Touch.y1<120)) return 0;
-  if ((Touch.x1>120) and (Touch.y1<120)) return 1;
-  if ((Touch.x1<120) and (Touch.y1>120)) return 2;
-  if ((Touch.x1>120) and (Touch.y1>120)) return 3;
-  return NOT_FOUND;
-}*/
 int  TouchedField(void) {
   for (int Row=0; Row<MULTI_SCREEN_ROWS; Row++) {
     for (int Col=0; Col<MULTI_SCREEN_COLS; Col++) {
