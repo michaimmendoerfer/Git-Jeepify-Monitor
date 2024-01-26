@@ -266,8 +266,7 @@ void setup() {
   TFT.setTextColor(TFT_BLACK, TFT_RED, false);
   TFT.setTextDatum(MC_DATUM); 
   TFT.drawString(VERSION, 120,60);
-  TFT.unloadFont();
-
+  
   TSMsgStart = millis();
 
   WiFi.mode(WIFI_STA);
@@ -275,7 +274,10 @@ void setup() {
 
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);    
-
+  
+  TFT.setTextColor(TFT_LIGHTGREY, TFT_BLACK, false);
+  TFT.drawString("ESP_Now launched", 120,80);
+  
   preferences.begin("JeepifyInit", true);
   DebugMode = preferences.getBool("DebugMode", true);
   SleepMode = preferences.getBool("SleepMode", false);
@@ -315,13 +317,16 @@ void setup() {
   RegisterPeers();
   ReportAll();
   
+  TFT.drawString("Peers registered", 120,100);
+  
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
 
   Mode = S_MENU;
 
   TSScreenRefresh = millis();
   TSTouch         = millis();
-  
+
+  TFT.unloadFont();  
 }
 void loop() {
   if (!TSMsgStart) {
@@ -991,6 +996,10 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
     TFTBuffer.drawString(ActiveScreen->Name, 120,15);
     TFTBuffer.unloadFont(); 
+
+    noInterrupts(); 
+      for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) ActiveScreen->Periph[SNr]->Changed = false;
+    interrupts();
   }
   TSScreenRefresh = millis(); 
 }
