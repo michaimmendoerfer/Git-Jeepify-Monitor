@@ -5,6 +5,7 @@
 
 #pragma region Includes
 #include <Arduino.h>
+#include <nvs_flash.h>
 #include "../../jeepify.h"
 #include <TFT_eSPI.h>
 #include "pix.h"
@@ -219,7 +220,7 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
           Serial.print("vergebene Id=");    Serial.println(Peer->Id);
           //Serial.print("vergebener Slot="); Serial.println(Peer->Slot);
 
-          for (int b = 0; b < 6; b++ ) Peer->BroadcastAddresPeriph[b] = mac[b];
+          for (int b = 0; b < 6; b++ ) Peer->BroadcastAddress[b] = mac[b];
           Serial.println();
 
           Peer->TSLastSeen = millis();
@@ -265,6 +266,7 @@ void setup() {
   TFT.setTextColor(TFT_BLACK, TFT_RED, false);
   TFT.setTextDatum(MC_DATUM); 
   TFT.drawString(VERSION, 120,60);
+  TFT.setTextColor(TFT_LIGHTGREY, TFT_BLACK, false);
   TFT.drawString("TFT ready", 120,100);
   TSMsgStart = millis();
 
@@ -274,7 +276,6 @@ void setup() {
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);    
   
-  TFT.setTextColor(TFT_LIGHTGREY, TFT_BLACK, false);
   TFT.drawString("ESP_Now launched", 120,120);
   
   preferences.begin("JeepifyInit", true);
@@ -294,11 +295,13 @@ void setup() {
 
   for (int s=0; s<MULTI_SCREENS; s++) {
     Screen[s].Id = s;
-    snprintf(Screen[s].Name, sizeof(Screen[s].Name) "Scr-%d", s);
+    snprintf(Screen[s].Name, sizeof(Screen[s].Name), "Scr-%d", s);
     Screen[s].Used = false;
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {
       Screen[s].PeriphId[p] = 0;
-      Screen[s].Periph[d]   = NULL;
+      Screen[s].Periph[p]   = NULL;
+      Screen[s].PeerId[p]   = 0;
+      Screen[s].Peer[p]     = NULL;
     }
   }
 
@@ -306,10 +309,13 @@ void setup() {
     P[PNr].Id = 0;
     P[PNr].Type = 0;
     P[PNr].Name[0] = '\0';
+    P[PNr].PNumber = PNr;
     for (int i; i<6; i++) P[PNr].BroadcastAddress[i] = 0;
-    for (int SNr=0; SNr<MAX_PERIPH; SNr++) {
-      P[PNr].Periph[SNr] = NULL;
-      P[PNr].PeriphId   = 0;
+    for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+      P[PNr].Periph[SNr].Name[0] = '\0';
+      P[PNr].Periph[SNr].Id      = 0;
+      P[PNr].Periph[SNr].Type    = 0;
+      P[PNr].Periph[SNr].PeerId  = 0;
     }
   }
 
@@ -317,7 +323,7 @@ void setup() {
   RegisterPeers();
   ReportAll();
   
-  TFT.drawString("Peers registered", 120,180);
+  TFT.drawString("Peers registered", 120,160);
   
   if (PeerCount == 0) { Serial.println("PeerCount=0, RTP=True"); ReadyToPair = true; TSPair = millis(); Mode = S_PAIRING;}
 
@@ -334,7 +340,8 @@ void loop() {
     if (millis() - TSTouch    > TOUCH_INTERVAL) {
       int TouchErg = TouchRead();
       if (TouchErg > 1) {
-        switch (Mode) {
+         if (Touch.Gesture == DBLCLICK) ReportAll();
+         switch (Mode) {
           case S_MENU    : 
             switch (Touch.Gesture) {
               case CLICK:       
@@ -430,9 +437,16 @@ void loop() {
             switch (Touch.Gesture) {
               case LONG_PRESS:       
                 Screen[ActiveMultiScreen].PeriphId[PeriphToFill] = ActivePeriph->Id;
-                Screen[ActiveMultiScreen].Periph[PeriphToFill] = ActivePeriph;
+                Screen[ActiveMultiScreen].Periph[PeriphToFill]   = ActivePeriph;
+                Screen[ActiveMultiScreen].PeerId[PeriphToFill]   = ActivePeriph->PeerId;
+                Screen[ActiveMultiScreen].Peer[PeriphToFill]     = FindPeerById(ActivePeriph->PeerId);
+                
                 ScreenChanged = true;
                 ChangesSaved = false;
+                Screen[ActiveMultiScreen].Used = false;
+                for (int s=0; s<PERIPH_PER_SCREEN; s++) {  
+                  if (Screen[ActiveMultiScreen].Periph[s]) Screen[ActiveMultiScreen].Used = true;
+                }
                 Mode = S_MULTI;
               case SWIPE_LEFT:  
                 ActivePeriph = FindNextPeriph(ActivePeriph, SENS_TYPE_ALL); 
@@ -454,7 +468,7 @@ void loop() {
                                 else if (ButtonHit(12)) { ScreenChanged = true; Mode = S_JSON; }
                                 else if (ButtonHit(13)) { SavePeers(); ChangesSaved = true; ScreenChanged = true; }
                                 break;
-              case LONG_PRESS:  if (ButtonHit( 6)) { ClearPeers(); ESP.restart(); }
+              case LONG_PRESS:  if (ButtonHit( 6)) { nvs_flash_erase(); nvs_flash_init(); ; ESP.restart(); }
               case SWIPE_UP:    Mode = S_MENU; break;
               case SWIPE_DOWN:  Mode = S_MENU; break;
             } 
@@ -556,31 +570,37 @@ void ScreenUpdate() {
 void ReportAll() {
   char Buf[100];
   String BufS;
-
+  Serial.println("Report-All");
   preferences.begin("JeepifyPeers", true);
   
   for (int PNr=0; PNr< MAX_PEERS; PNr++) {
-    snprintf(Buf, sizeof(Buf), "%d:%s(%d) - ", PNr, P[PNr].Name, P[PNr].Type);
+    snprintf(Buf, sizeof(Buf), "%d:%s(%d) - ID:%d -  ", PNr, P[PNr].Name, P[PNr].Type, P[PNr].Id);
     Serial.print(Buf);
     for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
       snprintf(Buf, sizeof(Buf), "P%d:%s(%d), ", Si, P[PNr].Periph[Si].Name, P[PNr].Periph[Si].Type);
-      Serial.println(Buf);
+      Serial.print(Buf);
     }
+    Serial.println();
   }
   
   for (int s=0; s<MULTI_SCREENS; s++) {
+    (Screen[s].Used) ? Serial.println("used") : Serial.println("not used");
     if (Screen[s].Used) {
       snprintf(Buf, sizeof(Buf), "S%d:%s, Id=%d - ", s, Screen[s].Name, Screen[s].Id); Serial.println(Buf);
-      for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-        snprintf(Buf, sizeof(Buf), "%d: PeerId=%d, PeriphId=%d, ", p, Screen[s].Periph[p]->PeerId, Screen[s].PeriphId[p]);
-        Serial.print(Buf);
+      for (int p=0; p<4; p++) {
+        if (Screen[s].Periph[p]) {
+          
+          Serial.print(p);
+          snprintf(Buf, sizeof(Buf), ": PeerId=%d, PeriphId=%d, PeriphName=%s", Screen[s].Periph[p]->PeerId, Screen[s].PeriphId[p], Screen[s].Periph[p]->Name);
+          Serial.println(Buf);
+        }
       }
       Serial.println();
     }
   }
   preferences.end();
 }
-void SavePeers() {
+/*void SavePeers() {
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
   
@@ -588,17 +608,17 @@ void SavePeers() {
 
   for (int PNr=0; PNr< MAX_PEERS; PNr++) {
     //P0-Id
-    snprintf(Buf, sizeof(Buf), "P%d-Id", PNr);
+    snprintf(Buf, sizeof(Buf), "P%d-I", PNr);
     Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[PNr].Id);
     preferences.putInt(Buf, P[PNr].Id);
 
     //P0-Type...
-    snprintf(Buf, sizeof(Buf), "P%d-Type", PNr);
+    snprintf(Buf, sizeof(Buf), "P%d-T", PNr);
     Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[PNr].Type);
     preferences.putInt(Buf, P[PNr].Type);
     
     //P0-Name
-    snprintf(Buf, sizeof(Buf), "P%d-Name", PNr);
+    snprintf(Buf, sizeof(Buf), "P%d-N", PNr);
     BufS = P[PNr].Name;
     Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(BufS);
     preferences.putString(Buf, BufS);
@@ -610,81 +630,149 @@ void SavePeers() {
 
     for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
     //P0-Periph0-Id
-      snprintf(Buf, sizeof(Buf), "P%d-Periph%d-Id", PNr, Si);
+      snprintf(Buf, sizeof(Buf), "P%d-P%d-I", PNr, Si);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[PNr].Periph[Si].Id);
       preferences.putInt(Buf, P[PNr].Periph[Si].Id);
 
       //P0-Periph0-Type  
-      snprintf(Buf, sizeof(Buf), "P%d-Periph%d-Type", PNr, Si);
+      snprintf(Buf, sizeof(Buf), "P%d-P%d-T", PNr, Si);
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(P[PNr].Periph[Si].Type);
       preferences.putInt(Buf, P[PNr].Periph[Si].Type);
 
     //P0-Periph0-Name  
-      snprintf(Buf, sizeof(Buf), "P%d-Periph%d-Name", PNr, Si);
+      snprintf(Buf, sizeof(Buf), "P%d-P%d-N", PNr, Si);
       BufS = P[PNr].Periph[Si].Name;
       Serial.print("schreibe "); Serial.print(Buf); Serial.print(" = "); Serial.println(BufS);
       preferences.putString(Buf, BufS);
     }
   }
-
+  Serial.println("jetzt kommt Multi");
+  char Buf2[50];
   for (int s=0; s<MULTI_SCREENS; s++) {
-    snprintf(Buf, sizeof(Buf), "S%d-Id", s);
+    snprintf(Buf, sizeof(Buf), "S%d-I", s);
+    Serial.println(Buf);
+    Serial.println(s);
+    Serial.println(Screen[s].Id);
     preferences.putInt(Buf, Screen[s].Id);
-    snprintf(Buf, sizeof(Buf), "Schreibe %s=%d", Buf, Screen[s].Id); Serial.println(Buf);
+    snprintf(Buf2, sizeof(Buf), "Schreibe %s=%d", Buf, Screen[s].Id); Serial.println(Buf2);
     
-    snprintf(Buf, sizeof(Buf), "S%d-Name", s);
+    snprintf(Buf, sizeof(Buf), "S%d-N", s);
     BufS = Screen[s].Name;
     preferences.putString(Buf, BufS);
-    snprintf(Buf, sizeof(Buf), "Schreibe %s=%s", Buf, BufS); Serial.println(Buf);
+    snprintf(Buf2, sizeof(Buf), "Schreibe %s=%s", Buf, BufS); Serial.println(Buf2);
     
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {
-      snprintf(Buf, sizeof(Buf), "S%d-PeerId%d", s, p);
+      snprintf(Buf, sizeof(Buf), "S%d-PI1%d", s, p);
       preferences.putInt(Buf, Screen[s].PeerId[p]); 
-      snprintf(Buf, sizeof(Buf), "Schreibe %s=%d", Buf, Screen[s].PeerId[p]); Serial.println(Buf);
+      snprintf(Buf2, sizeof(Buf), "Schreibe %s=%d", Buf, Screen[s].PeerId[p]); Serial.println(Buf2);
 
-      snprintf(Buf, sizeof(Buf), "S%d-PeriphId%d", s, p);
+      snprintf(Buf, sizeof(Buf), "S%d-PI2%d", s, p);
       preferences.putInt(Buf, Screen[s].PeriphId[p]);
-      snprintf(Buf, sizeof(Buf), "Schreibe %s=%d", Buf, Screen[s].PeriphId[p]); Serial.println(Buf);
+      snprintf(Buf2, sizeof(Buf), "Schreibe %s=%d", Buf, Screen[s].PeriphId[p]); Serial.println(Buf2);
     }
+  }
+  preferences.end();
+}
+*/
+void SavePeers() {
+  Serial.println("SavePeers...");
+  preferences.begin("JeepifyPeers", false);
+  
+  char Buf[50] = {}; String BufS;
+  
+  for (int PNr=0; PNr< MAX_PEERS; PNr++) {
+    snprintf(Buf, sizeof(Buf), "P%d", PNr);
+    Serial.print("Sizeof()"); Serial.print(PNr); Serial.print(") = "); Serial.println(sizeof(P[PNr]));
+    preferences.putBytes(Buf, &P[PNr], sizeof(P[PNr]));
+  }
+
+  Serial.println("jetzt kommt Multi");
+
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    snprintf(Buf, sizeof(Buf), "S%d", s);
+    preferences.putBytes(Buf, &Screen[s], sizeof(Screen[s]));
   }
   preferences.end();
 }
 void GetPeers() {
   preferences.begin("JeepifyPeers", true);
   
-  char Buf[50] = {}; String BufS;
-  
+  char Buf[50] = {}; 
+  PeerCount = 0;
+
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
-    P[PNr].PNumber = PNr;
+    snprintf(Buf, sizeof(Buf), "P%d", PNr); 
+    //Serial.printf("Sizeof(P[%d]=", sizeof(P[PNr]));
+    preferences.getBytes(Buf, &P[PNr], sizeof(P[PNr]));
+    if (P[PNr].Id) PeerCount++;
     
+    
+    for (int SNr=0; SNr<MAX_PERIPHERALS; SNr++) {
+      P[PNr].Periph[SNr].PeerId = P[PNr].Id;
+
+      if (DebugMode) {
+        snprintf(Buf, sizeof(Buf), "Periph %d: Name=%s, Type=%d, Id=%d, PeerId=%d", SNr, P[PNr].Periph[SNr].Name, P[PNr].Periph[SNr].Type, P[PNr].Periph[SNr].Id, P[PNr].Periph[SNr].PeerId);
+        Serial.println(Buf);
+
+        if (isSensor(&P[PNr].Periph[SNr]) and (ActiveSens   == NULL)) ActiveSens   = &P[PNr].Periph[SNr];
+        if (isSwitch(&P[PNr].Periph[SNr]) and (ActiveSwitch == NULL)) ActiveSwitch = &P[PNr].Periph[SNr];
+      }
+    }
+  }
+  Serial.println("Multi-getpeer");
+  for (int s=0; s<MULTI_SCREENS; s++) {
+    snprintf(Buf, sizeof(Buf), "S%d", s);
+    preferences.getBytes(Buf, &Screen[s], sizeof(Screen[s]));
+    
+    for (int p=0; p<PERIPH_PER_SCREEN; p++) {      
+      if (Screen[s].PeerId[p]) {
+        Screen[s].Peer[p]   = FindPeerById(Screen[s].PeerId[p]);
+        Serial.print("Peer[p]=");   Serial.println(Screen[s].Peer[p]->Name);
+      }
+      if (Screen[s].PeriphId[p]) {
+        Screen[s].Periph[p] = FindPeriphById(Screen[s].Peer[p], Screen[s].PeriphId[p]);
+        Serial.print("Periph[p]="); Serial.println(Screen[s].Periph[p]->Name);
+      }
+    }  
+  }
+  preferences.end();
+}
+/*void GetPeers() {
+  preferences.begin("JeepifyPeers", true);
+  
+  char Buf[50] = {}; String BufS;
+  PeerCount = 0;
+
+  for (int PNr=0; PNr<MAX_PEERS; PNr++) {
     // P0.Id
-    snprintf(Buf, sizeof(Buf), "P%d-Id", PNr); P[PNr].Id = preferences.getInt(Buf, 0);
-    
+    snprintf(Buf, sizeof(Buf), "P%d-I", PNr); P[PNr].Id = preferences.getInt(Buf, 0);
+    if (P[PNr].Id) PeerCount++;
+
     // P0-Type
-    snprintf(Buf, sizeof(Buf), "P%d-Type", PNr); P[PNr].Type = preferences.getInt(Buf, 0);
+    snprintf(Buf, sizeof(Buf), "P%d-T", PNr); P[PNr].Type = preferences.getInt(Buf, 0);
     
     // P0.Name
-    snprintf(Buf, sizeof(Buf), "P%d-Name", PNr); BufS = preferences.getString(Buf, "");
+    snprintf(Buf, sizeof(Buf), "P%d-N", PNr); BufS = preferences.getString(Buf, "");
     WriteStringToCharArray(BufS, P[PNr].Name);
        
     // P0.MAC
     snprintf(Buf, sizeof(Buf), "P%d-MAC", PNr); preferences.getBytes(Buf, P[PNr].BroadcastAddress, 6);
     
     for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
-      snprintf(Buf, sizeof(Buf), "P%d-Periph%d-Id", PNr, Si);
+      snprintf(Buf, sizeof(Buf), "P%d-P%d-I", PNr, Si);
       P[PNr].Periph[Si].Id = preferences.getInt(Buf, 0);
 
-      snprintf(Buf, sizeof(Buf), "P%d-Periph%d-Type", PNr, Si);
+      snprintf(Buf, sizeof(Buf), "P%d-P%d-T", PNr, Si);
       P[PNr].Periph[Si].Type = preferences.getInt(Buf, 0);
       
-      snprintf(Buf, sizeof(Buf), "P%d-Periph%d-Name", PNr, Si);
+      snprintf(Buf, sizeof(Buf), "P%d-P%d-N", PNr, Si);
       BufS = preferences.getString(Buf);
       WriteStringToCharArray(BufS, P[PNr].Periph[Si].Name);     
       
       P[PNr].Periph[Si].PeerId = P[PNr].Id;
       
       if (DebugMode) {
-        snprintf(Buf, sizeof(Buf), "Periph %d: Name=%s, Type=%d, Id=%d, PeerId=%d", Si, Periph[Si].Name, P[PNr].Periph[Si].Type, P[PNr].Periph[Si].Id, P[PNr].Periph[Si].PeerId);
+        snprintf(Buf, sizeof(Buf), "Periph %d: Name=%s, Type=%d, Id=%d, PeerId=%d", Si, P[PNr].Periph[Si].Name, P[PNr].Periph[Si].Type, P[PNr].Periph[Si].Id, P[PNr].Periph[Si].PeerId);
         Serial.println(Buf);
         delay(100);
       }
@@ -694,26 +782,26 @@ void GetPeers() {
     }
   }
   for (int s=0; s<MULTI_SCREENS; s++) {
-    snprintf(Buf, sizeof(Buf), "S%d-Id", s);
+    snprintf(Buf, sizeof(Buf), "S%d-I", s);
     Screen[s].Id = preferences.getInt(Buf,0);
      
-    snprintf(Buf, sizeof(Buf), "S%d-Name", s);
+    snprintf(Buf, sizeof(Buf), "S%d-N", s);
     BufS = preferences.getString(Buf, "");
     WriteStringToCharArray(BufS, Screen[s].Name);
      
     for (int p=0; p<PERIPH_PER_SCREEN; p++) {      
-      snprintf(Buf, sizeof(Buf), "S%d-PeerId%d", s, p);
+      snprintf(Buf, sizeof(Buf), "S%d-PI1%d", s, p);
       Screen[s].PeerId[p] = preferences.getInt(Buf,0);
       
-      snprintf(Buf, sizeof(Buf), "S%d-PeriphId%d", s, p);
+      snprintf(Buf, sizeof(Buf), "S%d-PI2%d", s, p);
       Screen[s].PeriphId[p] = preferences.getInt(Buf,0);
       
       Screen[s].Periph[p] = FindPeriphById(FindPeerById(Screen[s].PeerId[p]), Screen[s].PeriphId[p]);
     }  
   }
-
   preferences.end();
 }
+*/
 void RegisterPeers() {
   esp_now_peer_info_t peerInfo;
   peerInfo.channel = 1;
@@ -893,14 +981,11 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
   float TempValue[PERIPH_PER_SCREEN];
   bool Show = false;
 
-  snprintf(Buf, sizeof(Buf), "Showing Screen:%d",    ActiveScreen->Id);  Serial.println(Buf); 
-  snprintf(Buf, sizeof(Buf), "Name:%s, PeerId:%d, ", ActiveScreen->Name, ActiveScreen->PeerId); Serial.println(Buf); 
-  snprintf(Buf, sizeof(Buf), "PeriphIds: %s - %s",   ActiveScreen->Periph[0]->Name), ActiveScreen->Periph[1]->Name; Serial.println(Buf); 
-  snprintf(Buf, sizeof(Buf), "PeriphIds: %s - %s",   ActiveScreen->Periph[2]->Name), ActiveScreen->Periph[3]->Name; Serial.println(Buf); 
-  
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) Show = true;
-  for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) if (ActiveScreen->Periph[SNr]->Changed) Show = true;
-
+  for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) {
+    if (ActiveScreen->Periph[SNr])
+      if (ActiveScreen->Periph[SNr]->Changed) Show = true;
+  }
   if (Show) {
     ScreenChanged = true;     
     OldMode = Mode;        
@@ -926,7 +1011,7 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
             TFTBuffer.unloadFont();
           }
           else if (isSensorAmp (ActiveScreen->Periph[Si])) {
-            LittleGauge(ActiveScreen->Periph[Si]) 72+Col*96, 75+Row*90, 0, 35, 20, 30);
+            LittleGauge(ActiveScreen->Periph[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
             TFTBuffer.loadFont(AA_FONT_MONO); 
             dtostrf(TempValue[Si], 0, 1, Buf);
@@ -939,7 +1024,7 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
             TFTBuffer.unloadFont();
           }
           else if (isSensorVolt(ActiveScreen->Periph[Si])) {
-            LittleGauge(ActiveScreen->Periph[Si]), 72+Col*96, 75+Row*90, 0, 15, 13, 14);
+            LittleGauge(ActiveScreen->Periph[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
             TFTBuffer.loadFont(AA_FONT_MONO); 
             dtostrf(TempValue[Si], 0, 1, Buf);
@@ -962,7 +1047,7 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
     TFTBuffer.unloadFont(); 
 
     noInterrupts(); 
-      for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) ActiveScreen->Periph[SNr]->Changed = false;
+      for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) if (ActiveScreen->Periph[SNr]) ActiveScreen->Periph[SNr]->Changed = false;
     interrupts();
   }
   TSScreenRefresh = millis(); 
@@ -1745,12 +1830,12 @@ void LittleGauge(struct_Periph *Periph, int x, int y, int Min, int Max, int Star
   float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
   
   TFTBuffer.drawSmoothArc(x, y, R1, R2, ToGo, EndAngle, TFT_DARKGREY, 0x18E3, false);
-  if  (ToGo < YellowAngle) TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle, (int)ToGo,        TFT_GREEN,  0x18E3, false);
-  if ((ToGo >= YellowAngle) and (ToGo < RedAngle)) {
+  if  (ToGo <= YellowAngle) TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle, (int)ToGo,        TFT_GREEN,  0x18E3, false);
+  if ((ToGo > YellowAngle) and (ToGo <= RedAngle)) {
                            TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
                            TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)ToGo,        TFT_YELLOW, 0x18E3, false);
   }
-  if (ToGo >= RedAngle)  { TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
+  if (ToGo > RedAngle)  { TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)StartAngle,  (int)YellowAngle, TFT_GREEN,  0x18E3, false);
                            TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)YellowAngle, (int)RedAngle,    TFT_YELLOW, 0x18E3, false);
                            TFTBuffer.drawSmoothArc(x, y, R1, R2, (int)RedAngle,    (int)ToGo,        TFT_RED,    0x18E3, false);
   }         
