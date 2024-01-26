@@ -555,8 +555,7 @@ void ReportAll() {
   preferences.begin("JeepifyPeers", true);
   
   for (int PNr=0; PNr< MAX_PEERS; PNr++) {
-    BufS = P[PNr].Name;
-    sprintf(Buf, "%d:%s(%d) - ", PNr, P[PNr].Name, BufS, P[PNr].Type);
+    sprintf(Buf, "%d:%s(%d) - ", PNr, P[PNr].Name, P[PNr].Type);
     Serial.print(Buf);
     for (int Si=0; Si<MAX_PERIPHERALS; Si++) {
       sprintf(Buf, "P%d:%s(%d), ", Si, P[PNr].Periph[Si].Name, P[PNr].Periph[Si].Type);
