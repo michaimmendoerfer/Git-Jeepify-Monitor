@@ -340,12 +340,12 @@ void loop() {
               case CLICK:       
                 switch (TouchedField()) {
                   case 0: 
-                    if (!ActiveSens) ActiveSens = FindFirstPeriph(ActivePeer, SENS_TYPE_SENS, false);
+                    if (!ActiveSens) ActiveSens = FindFirstPeriph(ActivePeer, SENS_TYPE_SENS, false);         // kümmert sich auch um ActivePeer
                     if (!ActiveSens) ShowMessage("No Sensor"); 
                     else  Mode = S_SENSOR1;
                     break;
                   case 1: 
-                    if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePeer, SENS_TYPE_SWITCH, false);
+                    if (!ActiveSwitch) ActiveSwitch = FindFirstPeriph(ActivePeer, SENS_TYPE_SWITCH, false);   // kümmert sich auch um ActivePeer
                     if (!ActiveSwitch) ShowMessage("No Switch");
                     else Mode = S_SWITCH1;
                     break;
@@ -581,24 +581,6 @@ void ReportAll() {
   preferences.end();
 }
 void SavePeers() {
-  /*
-  Peers:
-  P0-Name   - P[0].Name         P0-Periph0.Name   - P[0].Periph[0].Name
-  P0-Type   - P[0].Type         P0-Periph1.Name   - P[0].Periph[1].Name
-  P0-Id     - P[0].Id           P0-Periph2.Name   - P[0].Periph[2].Name
-  P0-MAC    - P[0].MAC          P0-Periph3.Name   - P[0].Periph[3].Name
-                                P0-Periph4.Name   - P[0].Periph[4].Name
-  MultiScreens:
-  S0-Name   - Screen[0].Name    S0-PeriphId0      - Screen[0].PeriphId[0]
-                                S0-PeerId0        - Screen[0].PeerId[0]
-                                S0-PeriphId1      - Screen[0].PeriphId[1]
-                                S0-PeerId1        - Screen[0].PeerId[1]
-  S0-Id     - Screen[0].Id      S0-PeriphId2      - Screen[0].PeriphId[2]
-                                S0-PeerId2        - Screen[0].PeerId[2] 
-                                S0-PeriphId3      - Screen[0].PeriphId[3]
-                                S0-PeerId3        - Screen[0].PeerId[3]
-  */
-  
   Serial.println("SavePeers...");
   preferences.begin("JeepifyPeers", false);
   
@@ -668,30 +650,12 @@ void SavePeers() {
   preferences.end();
 }
 void GetPeers() {
-  /*
-  Peers:
-  P0-Name   - P[0].Name         P0-Periph0.Name   - P[0].Periph[0].Name
-  P0-Type   - P[0].Type         P0-Periph1.Name   - P[0].Periph[1].Name
-  P0-Id     - P[0].Id           P0-Periph2.Name   - P[0].Periph[2].Name
-  P0-MAC    - P[0].MAC          P0-Periph3.Name   - P[0].Periph[3].Name
-                                P0-Periph4.Name   - P[0].Periph[4].Name
-  MultiScreens:
-  S0-Name   - Screen[0].Name    S0-PeriphId0      - Screen[0].PeriphId[0]
-                                S0-PeerId0        - Screen[0].PeerId[0]
-                                S0-PeriphId1      - Screen[0].PeriphId[1]
-                                S0-PeerId1        - Screen[0].PeerId[1]
-  S0-Id     - Screen[0].Id      S0-PeriphId2      - Screen[0].PeriphId[2]
-                                S0-PeerId2        - Screen[0].PeerId[2] 
-                                S0-PeriphId3      - Screen[0].PeriphId[3]
-                                S0-PeerId3        - Screen[0].PeerId[3]
-  */
   preferences.begin("JeepifyPeers", true);
   
   char Buf[50] = {}; String BufS;
   
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
     P[PNr].PNumber = PNr;
-    P[PNr].TSLastSeen = millis();
     
     // P0.Id
     snprintf(Buf, sizeof(Buf), "P%d-Id", PNr); P[PNr].Id = preferences.getInt(Buf, 0);
@@ -929,10 +893,10 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
   float TempValue[PERIPH_PER_SCREEN];
   bool Show = false;
 
-  snprintf(Buf, sizeof(Buf), "Showing Screen:%d", ActiveScreen->Id); Serial.println(Buf); 
+  snprintf(Buf, sizeof(Buf), "Showing Screen:%d",    ActiveScreen->Id);  Serial.println(Buf); 
   snprintf(Buf, sizeof(Buf), "Name:%s, PeerId:%d, ", ActiveScreen->Name, ActiveScreen->PeerId); Serial.println(Buf); 
-  snprintf(Buf, sizeof(Buf), "PeriphIds: %s - %s", ActiveScreen->Periph[0]->Name), ActiveScreen->Periph[1]->Name; Serial.println(Buf); 
-  snprintf(Buf, sizeof(Buf), "PeriphIds: %s - %s", ActiveScreen->Periph[1]->Name), ActiveScreen->Periph[2]->Name; Serial.println(Buf); 
+  snprintf(Buf, sizeof(Buf), "PeriphIds: %s - %s",   ActiveScreen->Periph[0]->Name), ActiveScreen->Periph[1]->Name; Serial.println(Buf); 
+  snprintf(Buf, sizeof(Buf), "PeriphIds: %s - %s",   ActiveScreen->Periph[2]->Name), ActiveScreen->Periph[3]->Name; Serial.println(Buf); 
   
   if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) Show = true;
   for (int SNr=0; SNr<PERIPH_PER_SCREEN; SNr++) if (ActiveScreen->Periph[SNr]->Changed) Show = true;
@@ -1350,7 +1314,7 @@ struct_Periph *FindNextPeriph (struct_Periph *Periph, int Type, bool OnlyActual)
       }
     }
   }
-  return Periph;
+  return NULL;
 }
 struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type, bool OnlyActual){
   struct_Peer *Peer = FindPeerById(Periph->PeerId);    
@@ -1413,7 +1377,7 @@ struct_Periph *FindPrevPeriph (struct_Periph *Periph, int Type, bool OnlyActual)
       }
     }
   }
-  return Periph;
+  return NULL;
 }
 struct_Periph *FindPeriphById(struct_Peer *Peer, uint16_t Id) {
   if (Peer) {
