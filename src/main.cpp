@@ -55,8 +55,8 @@ void   ShowPeer();
 void   ShowPeers();
 void   ShowPairing();
 
-int    RingMeter(float vmin, float vmax, const char *units, byte scheme);
-void   LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, int StartRed);
+int    RingMeter  (struct_Periph *Periph, float vmin, float vmax, const char *units, byte scheme);
+void   LittleGauge(struct_Periph *Periph, int x, int y, int Min, int Max, int StartYellow, int StartRed);
 
 bool   PeriphChanged(struct_Peer *Peer, int Start, int Stop=0);
 bool   isPDC (struct_Peer *Peer);
@@ -829,13 +829,6 @@ void SendPing() {
   for (int PNr=0; PNr<MAX_PEERS; PNr++) {
     if (P[PNr].Type) esp_now_send(P[PNr].BroadcastAddress, (uint8_t *) jsondata.c_str(), 100);  
   }
-
-  //Serial.print("Sending Ping:"); 
-  //Serial.println(jsondata);   
-
-  //Serial.print("Mode="); Serial.print(Mode);
-  //Serial.print(", OldMode="); Serial.println(OldMode);
-     
 }
 void SendPairingConfirm(struct_Peer *Peer) {
   StaticJsonDocument<500> doc;
@@ -908,14 +901,14 @@ void ShowSingle(struct_Periph *Periph) {
       TFTBuffer.pushImage(0,0, 240, 240, JeepifyBackground);       
         
       switch(Periph->Type) {
-        case SENS_TYPE_AMP:    RingMeter(0, 30, "Amp",  GREEN2RED); break;
-        case SENS_TYPE_VOLT:   RingMeter(0, 15, "Volt", GREEN2RED); break;
+        case SENS_TYPE_AMP:    RingMeter(Periph, 0, 30, "Amp",  GREEN2RED); break;
+        case SENS_TYPE_VOLT:   RingMeter(Periph, 0, 15, "Volt", GREEN2RED); break;
         case SENS_TYPE_SWITCH: TFTBuffer.pushImage(0,0, 240, 240, Btn);
-                              TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name,       120,130); TFTBuffer.unloadFont(); 
-                              TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(FindPeerById(Periph->PeerId)->Name, 120,160); TFTBuffer.unloadFont();
-                              if      (Periph->Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
-                              else if (Periph->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
-                              break;
+                               TFTBuffer.loadFont(AA_FONT_LARGE); TFTBuffer.drawString(Periph->Name, 120,130); TFTBuffer.unloadFont(); 
+                               TFTBuffer.loadFont(AA_FONT_SMALL); TFTBuffer.drawString(FindPeerById(Periph->PeerId)->Name, 120,160); TFTBuffer.unloadFont();
+                               if      (Periph->Value == 1) TFTBuffer.pushImage(107,70,27,10,BtnOn);
+                               else if (Periph->Value == 0) TFTBuffer.pushImage(107,70,27,10,BtnOff);
+                               break;
         default:               ShowMessage("No input"); break;
       }
       
@@ -959,12 +952,12 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
             TFTBuffer.loadFont(AA_FONT_SMALL); 
             TFTGaugeSwitch.pushToSprite(&TFTBuffer, 22+Col*96, 25+Row*90, 0x4529);
             if (ActiveScreen->Periph[Si]->Value == 1) TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOn) ; 
-            else                                 TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
+            else                                      TFTBuffer.pushImage( 59+Col*96, 53+Row*90, 27, 10, BtnOff);
             TFTBuffer.drawString(ActiveScreen->Periph[Si]->Name, 70+Col*96, 85+Row*90);
             TFTBuffer.unloadFont();
           }
           else if (isSensorAmp (ActiveScreen->Periph[Si])) {
-            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 35, 20, 30);
+            LittleGauge(ActiveScreen->Periph[Si]) 72+Col*96, 75+Row*90, 0, 35, 20, 30);
             
             TFTBuffer.loadFont(AA_FONT_MONO); 
             dtostrf(TempValue[Si], 0, 1, Buf);
@@ -977,7 +970,7 @@ void ShowMulti(struct_MultiScreen *ActiveScreen) {
             TFTBuffer.unloadFont();
           }
           else if (isSensorVolt(ActiveScreen->Periph[Si])) {
-            LittleGauge(TempValue[Si], 72+Col*96, 75+Row*90, 0, 15, 13, 14);
+            LittleGauge(ActiveScreen->Periph[Si]), 72+Col*96, 75+Row*90, 0, 15, 13, 14);
 
             TFTBuffer.loadFont(AA_FONT_MONO); 
             dtostrf(TempValue[Si], 0, 1, Buf);
@@ -1627,7 +1620,7 @@ int  TouchRead() {
 }
 #pragma endregion Touch-Things
 #pragma region Gauges
-int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
+int  RingMeter(struct_Periph *Periph, float vmin, float vmax, const char *units, byte scheme) {
   int x = 0;
   int y = 0;
   int r = 120;
@@ -1638,7 +1631,7 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
     OldMode = Mode;
       
     noInterrupts(); 
-      float value = ActiveSens->Value; 
+      float value = Periph->Value; 
       if (abs(value < SCHWELLE)) value = 0;
     interrupts();
 
@@ -1664,13 +1657,13 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
     TFTBuffer.setTextColor(TFT_RUBICON, TFT_BLACK);
     TFTBuffer.setTextDatum(MC_DATUM);
     
-    if (DebugMode) TFTBuffer.drawString(ActivePeer->Name, 120,225);
+    if (DebugMode) TFTBuffer.drawString(FindPeerById(Periph->PeerId)->Name, 120,225);
 
     TFTBuffer.setTextColor(TFT_WHITE, TFT_BLACK);
     TFTBuffer.setTextDatum(TC_DATUM);
     TFTBuffer.drawString(units, 120,150); // Units display
     TFTBuffer.setTextDatum(BC_DATUM);
-    TFTBuffer.drawString(ActiveSens->Name, 120,90); // Units display
+    TFTBuffer.drawString(Periph->Name, 120,90); // Units display
 
     TFTBuffer.setTextColor(TFT_GREEN, TFT_BLACK);
     
@@ -1695,8 +1688,6 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
     dtostrf(vmax, len, 0, buf);
     TFTBuffer.setTextDatum(BR_DATUM);
     TFTBuffer.drawString(buf, 162, 200);
-    
-    // Set the text colour to default
     
     TFTBuffer.unloadFont();
     
@@ -1755,7 +1746,7 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
       }
     }
     noInterrupts();
-      ActiveSens->Changed = false; 
+      Periph->Changed = false; 
     interrupts();
 
     TSScreenRefresh = millis();
@@ -1763,7 +1754,7 @@ int  RingMeter(float vmin, float vmax, const char *units, byte scheme) {
   
   return x + r;
 }
-void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, int StartRed) {
+void LittleGauge(struct_Periph *Periph, int x, int y, int Min, int Max, int StartYellow, int StartRed) {
   char Buf[100];
 
   int R1 = 42;
@@ -1771,6 +1762,10 @@ void LittleGauge(float Value, int x, int y, int Min, int Max, int StartYellow, i
   int StartAngle   =  60;
   int EndAngle     = 300;
   int Range = Max-Min;
+
+  noInterrupts(); 
+    float Value = Periph->Value; 
+  interrupts();
   
   float ToGo = StartAngle + (EndAngle-StartAngle)/Range*(Value-Min);
   if (ToGo <= StartAngle) ToGo = StartAngle+1;
