@@ -1682,13 +1682,13 @@ int  RingMeter(struct_Periph *Periph, float vmin, float vmax, const char *units,
   int r = 120;
   int nk = 0;
   
-  if ((TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
+  if (1) { //(TSScreenRefresh - millis() > SCREEN_INTERVAL) or (Mode != OldMode)) {
     ScreenChanged = true;
     OldMode = Mode;
       
     noInterrupts(); 
       float value = Periph->Value; 
-      if (abs(value < SCHWELLE)) value = 0;
+      //if (abs(value < SCHWELLE)) value = 0;
     interrupts();
 
     char buf[20];
@@ -1825,6 +1825,8 @@ void LittleGauge(struct_Periph *Periph, int x, int y, int Min, int Max, int Star
   
   float ToGo = StartAngle + (EndAngle-StartAngle)/Range*(Value-Min);
   if (ToGo <= StartAngle) ToGo = StartAngle+1;
+  if (ToGo >= EndAngle)   ToGo = EndAngle;
+  
 
   float YellowAngle = StartAngle + (EndAngle-StartAngle)/Range*StartYellow;
   float RedAngle    = StartAngle + (EndAngle-StartAngle)/Range*StartRed;
