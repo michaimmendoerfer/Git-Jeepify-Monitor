@@ -264,7 +264,7 @@ void Ui_Multi_Loaded(lv_event_t * e)
 		}
 
 		PeriphClass *Periph =  Screen[ActiveMultiScreen].GetPeriph(Pos);
-
+		#ifdef MODULE_MONITOR_360
 		if (Periph)
 		{
 			lv_obj_add_flag(lv_obj_get_child(lv_scr_act(), Pos+1), LV_OBJ_FLAG_HIDDEN);
@@ -299,8 +299,39 @@ void Ui_Multi_Loaded(lv_event_t * e)
 			lv_obj_clear_flag(lv_obj_get_child(lv_scr_act(), Pos+1), LV_OBJ_FLAG_HIDDEN);
 			CompThingArray[Pos] = NULL;
 		}
-	}
+	#endif
+	#ifdef MODULE_MONITOR_240
+		if (Periph)
+		{
+			lv_obj_add_flag(lv_obj_get_child(ui_Container2, Pos), LV_OBJ_FLAG_HIDDEN);
+			
+			if (CompThingArray[Pos]) 
+				{
+					delete CompThingArray[Pos];
+					CompThingArray[Pos] = NULL;
+				}
 
+			if (Periph->IsSensor())
+			{	
+				CompThingArray[Pos] = new CompSensor;
+				CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 3, Periph, Ui_Multi_Clicked);
+				CompThingArray[Pos]->Update();
+			}
+			else if (Periph->IsSwitch())
+			{
+				CompThingArray[Pos] = new CompButton;
+				CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 3, Periph, Ui_Multi_Clicked);
+				CompThingArray[Pos]->Update();
+			}
+		}
+		else
+		{
+			lv_obj_clear_flag(lv_obj_get_child(ui_Container2, Pos), LV_OBJ_FLAG_HIDDEN);
+			CompThingArray[Pos] = NULL;
+		}
+	#endif
+	}
+	
 	if (MultiTimer) 
 	{
 		lv_timer_resume(MultiTimer);
