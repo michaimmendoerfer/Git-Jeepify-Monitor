@@ -65,6 +65,7 @@ CompButton::~CompButton()
 }
 void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb)
 {
+    // Size 1: 360-klein, 2: 360-groß, 3:240-klein, 4: 360-groß
     _Periph = Periph;
     _event_cb = event_cb;
     _Pos = Pos;
@@ -73,30 +74,46 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     _x = x;
     _y = y;			
 	
-    if (size == 1)
+    switch (size)
     {
-        _Width  =  70;
-        _Height = 120;
-        _PeerVisible = false;
-        _PeriphVisible = true;
-        _ValueVisible = true;
-        _PeriphValueCombo = true;
-    }
-    else
-    {
-        _Width  = 120;
-        _Height = 205;
-        _PeerVisible = true;
-        _PeriphVisible = true;
-        _ValueVisible = true;
-        _PeriphValueCombo = false;
-    }
-	
+        case 1:
+            _Width  =  70;
+            _Height = 120;
+            _PeerVisible = false;
+            _PeriphVisible = true;
+            _ValueVisible = true;
+            _PeriphValueCombo = true;
+            break;
+        case 2:
+            _Width  = 120;
+            _Height = 205;
+            _PeerVisible = true;
+            _PeriphVisible = true;
+            _ValueVisible = true;
+            _PeriphValueCombo = false;
+            break;
+        case 3:
+            _Width  =  45;
+            _Height = 77;
+            _PeerVisible = false;
+            _PeriphVisible = true;
+            _ValueVisible = true;
+            _PeriphValueCombo = true;
+            break;
+        case 4:
+            _Width  =  70;
+            _Height = 120;
+            _PeerVisible = true;
+            _PeriphVisible = true;
+            _ValueVisible = true;
+            _PeriphValueCombo = true;
+            break;  
+    }     
     _Spinner = lv_spinner_create(comp_parent, 1000, 90);
     
     lv_obj_set_align(_Spinner, LV_ALIGN_CENTER);
-    lv_obj_set_width(_Spinner,  _Width+30);
-    lv_obj_set_height(_Spinner, _Width+30);
+    lv_obj_set_width(_Spinner,  _Width+SCREEN_RES_HOR/12);
+    lv_obj_set_height(_Spinner, _Width+SCREEN_RES_VER/12);
 	
     lv_obj_set_pos(_Spinner, _x, _y);
     lv_obj_add_flag(_Spinner, LV_OBJ_FLAG_HIDDEN);     
@@ -118,12 +135,26 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
         lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_743505413, NULL);
         lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_888658411, NULL);
     }
-    else
+    if (size == 2)
     {
 	    lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1134846501, NULL);
 		lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_1528892059, NULL);
 		lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_1528892059, NULL);
 		lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_715952573, NULL);
+    }
+    if (size == 3)
+    {
+	    lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_237434643, NULL);
+        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_1471590615, NULL);
+        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_1471590615, NULL);
+        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_434995191, NULL);
+    }
+    if (size == 4)
+    {
+	    lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1640860301, NULL);
+        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_743505413, NULL);
+        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_743505413, NULL);
+        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_888658411, NULL);
     }
 
     //set Switch-state
@@ -145,15 +176,22 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
 	lv_obj_set_width (_LblPeer, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblPeer, LV_SIZE_CONTENT);    /// 1
 	
-	if (size == 1)
-	{
-        	SetPeerPos(-50, -5);
+	switch (size)
+    {
+        case 1:
+        	SetPeerPos(-SCREEN_RES_HOR/7, -5);
 	    	lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-	}
-	else
-	{
+            break;
+        case 2:
         	SetPeerPos(0, lv_pct(58));
 	    	lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+        case 3:
+            break;
+        case 4:
+            SetPeerPos(0, lv_pct(65));
+	    	lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
 	}
     
 	_LblPeriph = lv_label_create(_Button);
@@ -162,34 +200,52 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_width(_LblPeriph, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblPeriph, LV_SIZE_CONTENT);    /// 1
     
-    if (size == 1)
-	{
-		SetPeriphPos(0, -55);
-        lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+    switch (size)
+    {
+        case 1:
+            SetPeriphPos(0, -55);
+            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+        case 2:
+            SetPeriphPos(0, lv_pct(-70));
+            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+        case 3:
+            SetPeriphPos(0, lv_pct(-70));
+            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+        case 4:
+            SetPeriphPos(0, lv_pct(-65));
+            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
 	}
-	else
-	{
-		SetPeriphPos(0, lv_pct(-70));
-        lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
-	}
-    
+
     _LblValue = lv_label_create(_Button);
     SetStyle(_LblPeriph);
     lv_obj_add_flag(_LblValue, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_width(_LblValue, LV_SIZE_CONTENT);
     lv_obj_set_height(_LblValue, LV_SIZE_CONTENT);  
 	
-	if (size == 1)
-	{
-		SetValuePos(50, 70);
-    	lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-	}
-	else 
-	{
-		SetValuePos(70, lv_pct(-40));
-		lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
-	}
-    
+	switch (size)
+    {
+        case 1:
+            SetValuePos(50, 70);
+    	    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+	    case 2:
+            SetValuePos(70, lv_pct(-40));
+		    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+	    case 3:
+            SetValuePos(50, lv_pct(-40));
+		    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+        case 4:
+            SetValuePos(50, 70);
+    	    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+    }
+
 	lv_label_set_text(_LblValue, "--.- A");
 
     _LblPeriphId = lv_label_create(_Button);
@@ -219,15 +275,18 @@ void CompButton::Update()
 
     //set Switch-state
     if (_Periph->GetValue(0) == 0) 
+    {
         lv_imgbtn_set_state(_Button, LV_IMGBTN_STATE_RELEASED);
-    else 			  
+    }
+    else 
+    {			  
         lv_imgbtn_set_state(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED);
+    }
 
     // show Spinner if Value is in changed state
     if (_Periph->GetChanged()) ShowSpinner();
     else HideSpinner();
-    //(Periph->GetChanged() ? ShowSpinner() : HideSpinner();
-	
+    
 	// - show Peer if named and visible
 	if ((PeerOf(_Periph)->GetName() == NULL) or (!_PeerVisible))
 	{
@@ -248,11 +307,11 @@ void CompButton::Update()
 	{
 		if (_PeriphValueCombo) 
         {
-            sprintf(Buf_Value, " %0.2fA", _Periph->GetValue(3)); // amp-wert
+            sprintf(Buf_Value, " %0.1fA", _Periph->GetValue(3)); // amp-wert
         }
         else    
         {
-            sprintf(Buf_Value, " %0.2fA", _Periph->GetValue(3)); // amp-wert
+            sprintf(Buf_Value, " %0.1fA", _Periph->GetValue(3)); // amp-wert
             lv_obj_clear_flag(_LblValue, LV_OBJ_FLAG_HIDDEN);
         }
 	}
@@ -271,7 +330,7 @@ void CompButton::Update()
     }
     else 
     {
-        if (_Size == 1)
+        if ((_Size == 1) or (_Size == 3))
         {
             if (_Periph->GetValue(0) == 1) SetPeriphPos(0,  lv_pct(33));
             else                           SetPeriphPos(0,  lv_pct(-33));
@@ -293,7 +352,6 @@ void CompButton::Update()
         lv_obj_add_flag(_LblValue, LV_OBJ_FLAG_HIDDEN);
     }  
 }
-
 CompSensor::CompSensor()
 {
     _ClassType = 2;
@@ -304,6 +362,7 @@ CompSensor::~CompSensor()
 }
 void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb)
 {
+    // Size 1: 360-klein, 2: 360-groß, 3:240-klein, 4: 360-groß
     _Periph = Periph;
     _event_cb = event_cb;
     _Pos = Pos;
@@ -311,15 +370,23 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     _x = x;
     _y = y;		
 
-    _Width  = 100;
-    _Height = 100;
+    switch (size)
+    {
+        case 1:
+            _Width  = 100;
+            _Height = 100;
+            break;
+        case 3:
+            _Width  = 70;
+            _Height = 70;
+            break;
+    }
+
     _PeerVisible = true;
     _PeriphVisible = true;
     _ValueVisible = true;
     _PeriphValueCombo = false;
-    _SystemVisible = true;
-    
-    //Serial.printf("Pos: %d, x:%d, y:%d\n\r", Pos, x, y);
+    _SystemVisible = false;
     
     _Button = lv_btn_create(comp_parent);
     lv_obj_set_width(_Button, _Width);
@@ -327,6 +394,7 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_pos(_Button, _x, _y);
     lv_obj_set_align(_Button, LV_ALIGN_CENTER);
     lv_obj_add_flag(_Button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);     /// Flags
+    lv_obj_add_flag(_Button, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
     lv_obj_clear_flag(_Button, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
     lv_obj_set_style_radius(_Button, 50, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(_Button, lv_color_hex(0x165420), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -344,22 +412,48 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_width(_LblPeer, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblPeer, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(_LblPeer, LV_ALIGN_CENTER);
-    SetPeerPos(0, 30);
-    lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-
+    SetStyle(_LblPeer);
+    SetPeerPos(0,lv_pct(75));
+    switch (size)
+    {
+        case 1:
+            lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+        case 3:
+            lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+            break;
+    }
 	
     _LblPeriph = lv_label_create(_Button);
     lv_obj_set_width(_LblPeriph, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblPeriph, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(_LblPeriph, LV_ALIGN_CENTER);
-    SetPeriphPos(0, 5);
-    lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
-
+    switch (size)
+    {
+        case 1:
+            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            SetPeriphPos(0, 5);
+            break;
+        case 3:
+            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            SetPeriphPos(0, -15);
+            break;
+    }
     _LblValue = lv_label_create(_Button);
     lv_obj_set_width(_LblValue, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblValue, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(_LblValue, LV_ALIGN_CENTER);
-    SetValuePos(0, -20);
+    switch (size)
+    {
+        case 1:
+            lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            SetValuePos(0, 20);
+            break;
+        case 3:
+            lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            SetValuePos(0, 5);
+            break;
+    }
 
     _LblPeriphId = lv_label_create(_Button);
     lv_obj_set_width(_LblPeriphId, LV_SIZE_CONTENT);   /// 1
@@ -618,15 +712,17 @@ void CompMeter::Update()
     lv_obj_set_pos(_LblPeer,   _X_Peer,   _Y_Peer);
     lv_obj_set_pos(_LblPeriph, _X_Periph, _Y_Periph);
     lv_obj_set_pos(_LblValue,  _X_Value,  _Y_Value);
-    //nur so
-    if ((PeerOf(_Periph)->GetName() == NULL) or (!_PeerVisible))
+
+	//Serial.printf("Peer:Periph %s:%s", PeerOf(_Periph)->GetName(), _Periph->GetName());
+
+	if ((PeerOf(_Periph)->GetName() == NULL) or (!_PeerVisible))
 	{
 	    lv_obj_add_flag(_LblPeer, LV_OBJ_FLAG_HIDDEN);
 	}
 	else
 	{
-	    	lv_label_set_text_fmt(_LblPeer, "%.6s (%d dBm)", PeerOf(_Periph)->GetName(), PeerOf(_Periph)->GetdBm());
-     		lv_obj_clear_flag(_LblPeer, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text_fmt(_LblPeer, "%.6s (%d dBm)", PeerOf(_Periph)->GetName(), PeerOf(_Periph)->GetdBm());
+        lv_obj_clear_flag(_LblPeer, LV_OBJ_FLAG_HIDDEN);
 	}
     
     if ((_Periph->GetName() == NULL) or (!_PeriphVisible)) 
@@ -642,21 +738,22 @@ void CompMeter::Update()
 
     char buf[10];
 	int nk = 0;
-	float value;
+	float value = 0;
     if (_Periph->GetType() == SENS_TYPE_AMP)  value = _Periph->GetValue(3);
-	if (_Periph->GetType() == SENS_TYPE_VOLT) value = _Periph->GetValue(2);
+    if (_Periph->GetType() == SENS_TYPE_VOLT) value = _Periph->GetValue(2);
 	    
-    if (abs(value) < SCHWELLE) value = 0;
+		Serial.printf("Sensor: %s: %f\n\r", _Periph->GetName(), value);
+		if (abs(value) < SCHWELLE) value = 0;
 
-    if      (value<10)  nk = 2;
-    else if (value<100) nk = 1;
-    else                nk = 0;
+		if      (value<10)  nk = 2;
+		else if (value<100) nk = 1;
+		else                nk = 0;
 
-    if (value == -99) strcpy(buf, "--"); 
-    else dtostrf(value, 0, nk, buf);
+		if (value == -99) strcpy(buf, "--"); 
+		else dtostrf(value, 0, nk, buf);
 
-    if (_Periph->GetType() == SENS_TYPE_AMP)  strcat(buf, " A");
-    if (_Periph->GetType() == SENS_TYPE_VOLT) strcat(buf, " V");
+		if (_Periph->GetType() == SENS_TYPE_AMP)  strcat(buf, " A");
+		if (_Periph->GetType() == SENS_TYPE_VOLT) strcat(buf, " V");
 		
 	lv_meter_set_indicator_value(_Button, _IndicNeedle, value*10);
 

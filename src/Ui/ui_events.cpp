@@ -3,9 +3,14 @@
 // LVGL version: 8.3.6
 // Project name: Jeepify
 
+// DEBUG_LEVEL: 0 = nothing, 1 = only Errors, 2 = relevant changes, 3 = all
+#define DEBUG_LEVEL 1
+#define DEBUG1(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 0)) Serial.printf(__VA_ARGS__)
+#define DEBUG2(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 1)) Serial.printf(__VA_ARGS__)
+#define DEBUG3(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 2)) Serial.printf(__VA_ARGS__)
+
 #include <Arduino.h>
 #include "main.h"
-#include "Module.h"
 #include <String.h>
 #include "lv_meter.h"
 #include "CompButton.h"
@@ -37,16 +42,13 @@ int          SwitchPositionX[4][4] = { {  0 ,   0,   0,   0},
 
 int FirstShownSwitch;
  
-LV_IMG_DECLARE(ui_img_btn_png);      
+//LV_IMG_DECLARE(ui_img_btn_png);      
 
 void Keyboard_cb(lv_event_t * event);
 
-//void SingleUpdateTimer(lv_timer_t * timer);
 void MultiUpdateTimer(lv_timer_t * timer);
-//void SwitchUpdateTimer(lv_timer_t * timer);
 void SettingsUpdateTimer(lv_timer_t * timer);
 
-//void Ui_Single_Clicked(lv_event_t * e);
 void Ui_Multi_Clicked(lv_event_t * e);
 
 #pragma endregion Global_Definitions
@@ -163,18 +165,18 @@ void Ui_Set_ToggleDebug(lv_event_t * e)
 void Ui_Set_SavePeers(lv_event_t * e)
 {
     SavePeers();
-	Self.SetChanged(false);
-	if (Self.GetDebugMode()) ShowMessageBox("Saving...", "complete", 1000, 200);
+	Module.SetChanged(false);
+	if (Module.GetDebugMode()) ShowMessageBox("Saving...", "complete", 1000, 200);
 }
 void SettingsUpdateTimer(lv_timer_t * timer)
 {
-	if (Self.GetPairMode()) lv_obj_add_state(ui_BtnSet2, LV_STATE_CHECKED);
+	if (Module.GetPairMode()) lv_obj_add_state(ui_BtnSet2, LV_STATE_CHECKED);
 	else lv_obj_clear_state(ui_BtnSet2, LV_STATE_CHECKED);
 	
-	if (Self.GetDebugMode()) lv_obj_add_state(ui_BtnSet7, LV_STATE_CHECKED);
+	if (Module.GetDebugMode()) lv_obj_add_state(ui_BtnSet7, LV_STATE_CHECKED);
 	else lv_obj_clear_state(ui_BtnSet7, LV_STATE_CHECKED);
 	
-	if (Self.GetChanged()) lv_obj_add_state(ui_BtnSet8, LV_STATE_CHECKED);
+	if (Module.GetChanged()) lv_obj_add_state(ui_BtnSet8, LV_STATE_CHECKED);
 	else lv_obj_clear_state(ui_BtnSet8, LV_STATE_CHECKED);
 
 	if (WebServerActive) lv_obj_add_state(ui_BtnSet1, LV_STATE_CHECKED);
@@ -248,17 +250,17 @@ void Ui_JSON_Prepare(lv_event_t * e)
 void Ui_Multi_Loaded(lv_event_t * e)
 {
 	static uint32_t user_data = 10;
-		
-	lv_label_set_text(ui_LblMultiScreenName, Screen[ActiveMultiScreen].GetName());
+	lv_label_set_text(ui_LblMultiScreenName,Screen[ActiveMultiScreen].GetName());
 					
 	for (int Pos=0; Pos<PERIPH_PER_SCREEN; Pos++)
 	{
 		int x; int y;
+		
 		switch (Pos) {
-			case 0: x= -65; y=-50; break;
-			case 1: x=  65; y=-50; break;
-			case 2: x= -65; y= 70; break;
-			case 3: x=  65; y= 70; break;
+			case 0: x= (int)-SCREEN_RES_HOR/5; y=(int)-SCREEN_RES_VER/5; break;
+			case 1: x= (int) SCREEN_RES_HOR/5; y=(int)-SCREEN_RES_VER/5; break;
+			case 2: x= (int)-SCREEN_RES_HOR/5; y=(int) SCREEN_RES_VER/6; break;
+			case 3: x= (int) SCREEN_RES_HOR/5; y=(int) SCREEN_RES_VER/6; break;
 		}
 
 		PeriphClass *Periph =  Screen[ActiveMultiScreen].GetPeriph(Pos);
@@ -276,13 +278,19 @@ void Ui_Multi_Loaded(lv_event_t * e)
 			if (Periph->IsSensor())
 			{	
 				CompThingArray[Pos] = new CompSensor;
-				CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
+				if (SCREEN_RES_HOR == 360) 
+					CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
+				if (SCREEN_RES_HOR == 240) 
+					CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 3, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Update();
 			}
 			else if (Periph->IsSwitch())
 			{
 				CompThingArray[Pos] = new CompButton;
-				CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
+				if (SCREEN_RES_HOR == 360) 
+					CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
+				if (SCREEN_RES_HOR == 240) 
+					CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 3, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Update();
 			}
 		}
@@ -441,7 +449,7 @@ void Ui_PeriphChoice_Last(lv_event_t * e)
 void Ui_PeriphChoice_Click(lv_event_t * e)
 {
 	Screen[ActiveMultiScreen].AddPeriph(MultiPosToChange, ActivePeriph);
-	Self.SetChanged(true);
+	Module.SetChanged(true);
 	_ui_screen_change(&ui_ScrMulti, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, &ui_ScrMulti_screen_init);
 }
 void Ui_Periph_Choice_Loaded(lv_event_t * e)
@@ -500,7 +508,7 @@ void TopUpdateTimer(lv_timer_t * timer)
 	else {
 		lv_led_off(Ui_LedPair);
 		TSPair = 0;
-		Self.SetPairMode(false);
+		Module.SetPairMode(false);
 	}
 }
 
@@ -539,7 +547,7 @@ void Ui_Init_Custom(lv_event_t * e)
     lv_keyboard_set_mode(ui_Keyboard, LV_KEYBOARD_MODE_USER_1);
 	lv_obj_add_event_cb (ui_Keyboard, Keyboard_cb, LV_EVENT_READY, NULL);
 
-	lv_label_set_text(ui_LblMenuVersion, MODULE_VERSION);
+	lv_label_set_text(ui_LblMenuVersion, Module.GetVersion());
 }
 
 void Keyboard_cb(lv_event_t * event)
@@ -572,9 +580,8 @@ void Ui_Volt_Start(lv_event_t * e)
 #pragma region Menu
 void Ui_Menu_Loaded(lv_event_t * e)
 {
-	lv_label_set_text(ui_LblMenuVersion, Self.GetVersion());
+	lv_label_set_text(ui_LblMenuVersion, Module.GetVersion());
 }
-
 void Ui_Menu_Btn1_Clicked(lv_event_t * e)
 {
 	if (!ActivePeriphSensor) ActivePeriphSensor = FindNextPeriph(NULL, NULL, SENS_TYPE_SENS, ONLINE);
@@ -595,3 +602,5 @@ void Ui_Menu_Btn2_Clicked(lv_event_t * e)
 	}
 }
 #pragma endregion Menu
+
+

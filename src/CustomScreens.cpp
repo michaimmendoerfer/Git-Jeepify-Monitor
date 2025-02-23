@@ -78,7 +78,7 @@ void Ui_Single_Prepare(lv_event_t * e)
 		if      (ActivePeriphShown->IsSensor()) CompThingArray[Pos] = new CompMeter;
 		else if (ActivePeriphShown->IsSwitch()) CompThingArray[Pos] = new CompButton;
 		
-		CompThingArray[Pos]->Setup(ui_ScrSingle, 0, 0, 0, 360, ActivePeriphShown, Ui_Single_Clicked);
+		CompThingArray[Pos]->Setup(ui_ScrSingle, 0, 0, 0, SCREEN_RES_HOR, ActivePeriphShown, Ui_Single_Clicked);
 		CompThingArray[Pos]->Update();
 		
 		static uint32_t user_data = 10;
