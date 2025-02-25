@@ -50,7 +50,7 @@ volatile uint32_t TSPair    = 0;
 
 volatile uint32_t TSConfirm = 0;
 
-lv_timer_t *WDButtonVars;
+//lv_timer_t *WDButtonVars;
 
 int ActiveMultiScreen;
 bool WebServerActive = true;
