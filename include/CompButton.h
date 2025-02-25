@@ -3,13 +3,14 @@
 
 #include <Arduino.h>
 #include "lvgl.h"
-#include "Ui/ui.h"
+#include "main.h"
+#include UI_H_DIR
 #include "PeerClass.h"
 #include "pref_manager.h"
 #include "LinkedList.h"
 #include "Jeepify.h"
-#include "main.h"
 #include "CompButton.h"
+
 class CompThing {
     static int  _ClassId;
 

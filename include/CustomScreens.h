@@ -2,7 +2,7 @@
 #define CUSTOMSCREENS_H
 
 #include "PeerClass.h"
-#include "Ui/ui.h"
+#include UI_H_DIR
 #include "CompButton.h"
 
 // SCREEN: ui_ScrSingle

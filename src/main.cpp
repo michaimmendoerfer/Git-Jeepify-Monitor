@@ -1,13 +1,13 @@
-#include <Arduino.h>
-#include "main.h"
-
-// DEBUG_LEVEL: 0 = nothing, 1 = only Errors, 2 = relevant changes, 3 = all
-#define DEBUG_LEVEL 1
-#define DEBUG1(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 0)) Serial.printf(__VA_ARGS__)
-#define DEBUG2(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 1)) Serial.printf(__VA_ARGS__)
-#define DEBUG3(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 2)) Serial.printf(__VA_ARGS__)
-
+#define DEBUG_LEVEL 3
 //#define KILL_NVS 1
+
+#include "main.h"
+#ifdef MODULE_MONITOR_360 
+    #include "scr_st77916.h"
+#endif
+#ifdef MODULE_MONITOR_240
+    #include "scr_tft240round.h"
+#endif
 
 #pragma region Globals
 
@@ -640,7 +640,7 @@ void setup()
 void loop() 
 {
   lv_timer_handler(); /* let the GUI do its work */
-  delay(5);
+  delay(10);
 }
 #pragma endregion Main
 

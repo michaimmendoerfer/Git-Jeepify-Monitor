@@ -10,13 +10,17 @@
 #include "PeerClass.h"
 #include "LinkedList.h"
 #include <lvgl.h>
-#include "Ui\ui.h"
-#include "Ui\ui_events.h" 
+#include "Module.h"
+#include UI_H_DIR
+#include UI_EVENTS_H_DIR
 #include <nvs_flash.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
-#include "Module.h"
+
+#define DEBUG1(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 0)) Serial.printf(__VA_ARGS__)
+#define DEBUG2(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 1)) Serial.printf(__VA_ARGS__)
+#define DEBUG3(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 2)) Serial.printf(__VA_ARGS__)
 
 void   PrintMAC(const uint8_t * mac_addr);
 

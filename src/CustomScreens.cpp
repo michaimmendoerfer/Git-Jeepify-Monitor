@@ -1,12 +1,8 @@
-#include "Ui/ui.h"
-#include "CustomScreens.h"
 #include <Arduino.h>
-#include "lv_meter.h"
-#include "PeerClass.h"
-#include "pref_manager.h"
-#include "LinkedList.h"
-#include "Jeepify.h"
 #include "main.h"
+#include "CustomScreens.h"
+#include "lv_meter.h"
+
 #include "CompButton.h"
 
 lv_timer_t *SingleTimer;

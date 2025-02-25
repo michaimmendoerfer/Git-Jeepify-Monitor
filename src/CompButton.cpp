@@ -1,9 +1,4 @@
 #include <Arduino.h>
-#include "Ui/ui.h"
-#include "PeerClass.h"
-#include "pref_manager.h"
-#include "LinkedList.h"
-#include "Jeepify.h"
 #include "main.h"
 #include "CompButton.h"
 
@@ -77,37 +72,45 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     switch (size)
     {
         case 1:
-            _Width  =  70;
-            _Height = 120;
-            _PeerVisible = false;
-            _PeriphVisible = true;
-            _ValueVisible = true;
-            _PeriphValueCombo = true;
+            if (SCREEN_RES_HOR == 360)
+            {
+                _Width  =  70;
+                _Height = 120;
+                _PeerVisible = false;
+                _PeriphVisible = true;
+                _ValueVisible = true;
+                _PeriphValueCombo = true;
+            }
+            if (SCREEN_RES_HOR == 240)
+            {
+                _Width  =  45;
+                _Height = 77;
+                _PeerVisible = false;
+                _PeriphVisible = true;
+                _ValueVisible = true;
+                _PeriphValueCombo = true;
+            }
             break;
         case 2:
-            _Width  = 120;
-            _Height = 205;
-            _PeerVisible = true;
-            _PeriphVisible = true;
-            _ValueVisible = true;
-            _PeriphValueCombo = false;
-            break;
-        case 3:
-            _Width  =  45;
-            _Height = 77;
-            _PeerVisible = false;
-            _PeriphVisible = true;
-            _ValueVisible = true;
-            _PeriphValueCombo = true;
-            break;
-        case 4:
-            _Width  =  70;
-            _Height = 120;
-            _PeerVisible = true;
-            _PeriphVisible = true;
-            _ValueVisible = true;
-            _PeriphValueCombo = true;
-            break;  
+            if (SCREEN_RES_HOR == 360)
+            {
+                _Width  = 120;
+                _Height = 205;
+                _PeerVisible = true;
+                _PeriphVisible = true;
+                _ValueVisible = true;
+                _PeriphValueCombo = false;
+            }
+            if (SCREEN_RES_HOR == 240)
+            {
+                _Width  =  70;
+                _Height = 120;
+                _PeerVisible = true;
+                _PeriphVisible = true;
+                _ValueVisible = true;
+                _PeriphValueCombo = true;
+            }
+            break; 
     }     
     _Spinner = lv_spinner_create(comp_parent, 1000, 90);
     
@@ -130,31 +133,38 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     _Button = lv_imgbtn_create(comp_parent);
     if (size == 1)
     {
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1640860301, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_743505413, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_743505413, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_888658411, NULL);
+        if (SCREEN_RES_HOR == 360)
+        {
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1640860301, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_743505413, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_743505413, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_888658411, NULL);
+        }
+        if (SCREEN_RES_HOR == 240)
+        {
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_237434643, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_1471590615, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_1471590615, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_434995191, NULL);
+        }
+
     }
     if (size == 2)
     {
-	    lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1134846501, NULL);
-		lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_1528892059, NULL);
-		lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_1528892059, NULL);
-		lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_715952573, NULL);
-    }
-    if (size == 3)
-    {
-	    lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_237434643, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_1471590615, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_1471590615, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_434995191, NULL);
-    }
-    if (size == 4)
-    {
-	    lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1640860301, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_743505413, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_743505413, NULL);
-        lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_888658411, NULL);
+	    if (SCREEN_RES_HOR == 360)
+        {
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1134846501, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_1528892059, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_1528892059, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_715952573, NULL);
+        }
+        if (SCREEN_RES_HOR == 240)
+        {
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_RELEASED, NULL, &ui_img_1640860301, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_PRESSED, NULL, &ui_img_743505413, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_PRESSED, NULL, &ui_img_743505413, NULL);
+            lv_imgbtn_set_src(_Button, LV_IMGBTN_STATE_CHECKED_RELEASED, NULL, &ui_img_888658411, NULL);
+        }
     }
 
     //set Switch-state
@@ -179,18 +189,27 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
 	switch (size)
     {
         case 1:
-        	SetPeerPos(-SCREEN_RES_HOR/7, -5);
-	    	lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (SCREEN_RES_HOR == 240)
+            {
+            }
+
+            if (SCREEN_RES_HOR == 360)
+            {
+                SetPeerPos(-SCREEN_RES_HOR/7, -5);
+	    	    lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             break;
         case 2:
-        	SetPeerPos(0, lv_pct(58));
-	    	lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
-            break;
-        case 3:
-            break;
-        case 4:
-            SetPeerPos(0, lv_pct(65));
-	    	lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (SCREEN_RES_HOR == 240)
+            {
+                SetPeerPos(0, lv_pct(65));
+	    	    lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
+            if (SCREEN_RES_HOR == 360)
+            {
+                SetPeerPos(0, lv_pct(58));
+                lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             break;
 	}
     
@@ -203,20 +222,28 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     switch (size)
     {
         case 1:
-            SetPeriphPos(0, -55);
-            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (SCREEN_RES_HOR == 240)
+            {
+                SetPeriphPos(0, lv_pct(-70));
+                lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
+            if (SCREEN_RES_HOR == 360)
+            {
+                SetPeriphPos(0, -55);
+                lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             break;
         case 2:
-            SetPeriphPos(0, lv_pct(-70));
-            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
-            break;
-        case 3:
-            SetPeriphPos(0, lv_pct(-70));
-            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
-            break;
-        case 4:
-            SetPeriphPos(0, lv_pct(-65));
-            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (SCREEN_RES_HOR == 240)
+            {
+                SetPeriphPos(0, lv_pct(-65));
+                lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
+            if (SCREEN_RES_HOR == 360)
+            {
+                SetPeriphPos(0, lv_pct(-70));
+                lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_20, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             break;
 	}
 
@@ -229,20 +256,28 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
 	switch (size)
     {
         case 1:
-            SetValuePos(50, 70);
-    	    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (SCREEN_RES_HOR == 360)
+            {
+                SetValuePos(50, 70);
+                lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
+            if (SCREEN_RES_HOR == 240)
+            {
+                SetValuePos(50, lv_pct(-40));
+		        lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             break;
 	    case 2:
-            SetValuePos(70, lv_pct(-40));
-		    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
-            break;
-	    case 3:
-            SetValuePos(50, lv_pct(-40));
-		    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-            break;
-        case 4:
-            SetValuePos(50, 70);
-    	    lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            if (SCREEN_RES_HOR == 360)
+            {
+                SetValuePos(70, lv_pct(-40));
+		        lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
+            if (SCREEN_RES_HOR == 240)
+            {
+                SetValuePos(50, 70);
+    	        lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+            }
             break;
     }
 
@@ -362,7 +397,7 @@ CompSensor::~CompSensor()
 }
 void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb)
 {
-    // Size 1: 360-klein, 2: 360-groß, 3:240-klein, 4: 360-groß
+    // Size 1: klein, 2: groß
     _Periph = Periph;
     _event_cb = event_cb;
     _Pos = Pos;
@@ -370,18 +405,17 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     _x = x;
     _y = y;		
 
-    switch (size)
+    if (SCREEN_RES_HOR == 360)
     {
-        case 1:
-            _Width  = 100;
-            _Height = 100;
-            break;
-        case 3:
-            _Width  = 70;
-            _Height = 70;
-            break;
+        _Width  = 100;
+        _Height = 100;
     }
-
+    if (SCREEN_RES_HOR == 240)
+    {
+        _Width  = 70;
+        _Height = 70;
+    }
+    
     _PeerVisible = true;
     _PeriphVisible = true;
     _ValueVisible = true;
@@ -414,45 +448,40 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_align(_LblPeer, LV_ALIGN_CENTER);
     SetStyle(_LblPeer);
     SetPeerPos(0,lv_pct(75));
-    switch (size)
-    {
-        case 1:
-            lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-            break;
-        case 3:
-            lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
-            break;
-    }
-	
+
+    if (SCREEN_RES_HOR == 360) lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+    if (SCREEN_RES_HOR == 240) lv_obj_set_style_text_font(_LblPeer, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    
     _LblPeriph = lv_label_create(_Button);
     lv_obj_set_width(_LblPeriph, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblPeriph, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(_LblPeriph, LV_ALIGN_CENTER);
-    switch (size)
+    
+    if (SCREEN_RES_HOR == 360)
     {
-        case 1:
-            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
-            SetPeriphPos(0, 5);
-            break;
-        case 3:
-            lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-            SetPeriphPos(0, -15);
-            break;
+        lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+        SetPeriphPos(0, -20);
     }
+    if (SCREEN_RES_HOR == 240)
+    {
+        lv_obj_set_style_text_font(_LblPeriph, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+        SetPeriphPos(0, -15);
+    }
+
     _LblValue = lv_label_create(_Button);
     lv_obj_set_width(_LblValue, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblValue, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_align(_LblValue, LV_ALIGN_CENTER);
-    switch (size)
+    
+    if (SCREEN_RES_HOR == 360)
     {
-        case 1:
-            lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
-            SetValuePos(0, 20);
-            break;
-        case 3:
-            lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
-            SetValuePos(0, 5);
-            break;
+        lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
+        SetValuePos(0, 5);
+    }
+    if (SCREEN_RES_HOR == 240)
+    {              
+        lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
+        SetValuePos(0, 5);
     }
 
     _LblPeriphId = lv_label_create(_Button);
