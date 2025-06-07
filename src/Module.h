@@ -3,8 +3,8 @@
 
 #include <Jeepify.h>
 
-#define MODULE_MONITOR_360
-//#define MODULE_MONITOR_240
+//#define MODULE_MONITOR_360
+#define MODULE_MONITOR_240
 
 #define MODULE_VERSION          "3.70"  
 #define PROTOKOLL_VERSION       "2.00"

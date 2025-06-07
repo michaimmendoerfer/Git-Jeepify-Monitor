@@ -208,12 +208,12 @@ LV_IMG_DECLARE(ui_img_1769637049);    // assets/PeterRelais-1.png
 LV_IMG_DECLARE(ui_img_rolfmodule_round_png);    // assets/RolfModule_round.png
 LV_IMG_DECLARE(ui_img_888658411);    // assets/kipp-1-on-70.png
 LV_IMG_DECLARE(ui_img_1528892059);    // assets/kipp-1-neutral-120.png
+LV_IMG_DECLARE(ui_img_1471590615);    // assets/kipp-1-neutral-45.png
 LV_IMG_DECLARE(ui_img_743505413);    // assets/kipp-1-neutral-70.png
 LV_IMG_DECLARE(ui_img_1134846501);    // assets/kipp-1-off-120.png
+LV_IMG_DECLARE(ui_img_237434643);    // assets/kipp-1-off-45.png
 LV_IMG_DECLARE(ui_img_1640860301);    // assets/kipp-1-off-70.png
 LV_IMG_DECLARE(ui_img_715952573);    // assets/kipp-1-on-120.png
-LV_IMG_DECLARE(ui_img_1471590615);    // assets/kipp-1-neutral-45.png
-LV_IMG_DECLARE(ui_img_237434643);    // assets/kipp-1-off-45.png
 LV_IMG_DECLARE(ui_img_434995191);    // assets/kipp-1-on-45.png
 
 // UI INIT

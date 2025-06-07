@@ -183,9 +183,9 @@ lv_obj_t * ui____initial_actions0;
 // IMAGES AND IMAGE SETS
 const lv_img_dsc_t * ui_imgset_ansgarmodule_[1] = {&ui_img_ansgarmodule_4_png};
 const lv_img_dsc_t * ui_imgset_horstrelais[1] = {&ui_img_horstrelais2_png};
-const lv_img_dsc_t * ui_imgset_1737837525[3] = {&ui_img_1528892059, &ui_img_743505413, &ui_img_1471590615};
-const lv_img_dsc_t * ui_imgset_1014533431[3] = {&ui_img_1134846501, &ui_img_1640860301, &ui_img_237434643};
-const lv_img_dsc_t * ui_imgset_201250811[3] = {&ui_img_715952573, &ui_img_888658411, &ui_img_434995191};
+const lv_img_dsc_t * ui_imgset_1737837525[3] = {&ui_img_1528892059, &ui_img_1471590615, &ui_img_743505413};
+const lv_img_dsc_t * ui_imgset_1014533431[3] = {&ui_img_1134846501, &ui_img_237434643, &ui_img_1640860301};
+const lv_img_dsc_t * ui_imgset_201250811[3] = {&ui_img_715952573, &ui_img_434995191, &ui_img_888658411};
 const lv_img_dsc_t * ui_imgset_menubtn[4] = {&ui_img_menubtn1_png, &ui_img_menubtn2_png, &ui_img_menubtn3_png, &ui_img_menubtn4_png};
 const lv_img_dsc_t * ui_imgset_1265058017[1] = {&ui_img_1769637049};
 

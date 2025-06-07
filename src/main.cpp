@@ -1,5 +1,5 @@
 #define DEBUG_LEVEL 3
-//#define KILL_NVS 1
+#define KILL_NVS 1
 
 #include "main.h"
 #ifdef MODULE_MONITOR_360 
