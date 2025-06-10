@@ -47,10 +47,9 @@ volatile uint32_t TSMsgVolt = 0;
 volatile uint32_t TSMsgEich = 0;
 volatile uint32_t TSMsgPair = 0;
 volatile uint32_t TSPair    = 0;
-
 volatile uint32_t TSConfirm = 0;
 
-//lv_timer_t *WDButtonVars;
+struct_Graph Graph[MAX_PERIPHERALS];
 
 int ActiveMultiScreen;
 bool WebServerActive = true;
@@ -543,7 +542,16 @@ void ToggleWebServer()
                             P->SetPeriphValue(Si, _Value2, 2);
                             P->SetPeriphOldValue(Si, P->GetPeriphValue(Si, 3), 3);
                             P->SetPeriphValue(Si, _Value3, 3);
-                            
+
+                            Graph[Si].Index++;
+                            if (Graph[Si].Index == RECORDED_VALUES) Graph[Si].Index = 0;
+
+                            Graph[Si].Value[Graph[Si].Index][0] = _Value0;
+                            Graph[Si].Value[Graph[Si].Index][1] = _Value1;
+                            Graph[Si].Value[Graph[Si].Index][2] = _Value2;
+                            Graph[Si].Value[Graph[Si].Index][3] = _Value3;
+                            Graph[Si].TSValue[Graph[Si].Index]  = millis();
+
                             P->SetPeriphChanged(Si, false); //werte wieder uptodate
 
                             if (_Status)

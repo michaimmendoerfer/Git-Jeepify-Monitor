@@ -11,6 +11,8 @@
 #include "Jeepify.h"
 #include "CompButton.h"
 
+extern struct_Graph Graph[MAX_PERIPHERALS];
+
 class CompThing {
     static int  _ClassId;
 
@@ -39,6 +41,7 @@ class CompThing {
         bool _ValueVisible;
         bool _SystemVisible;
         bool _dBmVisible;
+        bool _GraphVisible;
         bool _PeriphValueCombo;
 
         int _X_Peer;
@@ -47,6 +50,7 @@ class CompThing {
         int _Y_Periph;
         int _X_Value;
         int _Y_Value;
+        int _GraphValuePos;
 
         lv_event_cb_t _event_cb;
 
@@ -55,7 +59,8 @@ class CompThing {
         virtual ~CompThing();
         virtual void Update();
         virtual void Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb);
-        
+        void GraphZeichnen(int x, int y, int Width, int Height, int min, int max, int Anz, int SNr);
+
         PeriphClass *GetPeriph() { return _Periph; }
         lv_obj_t*    GetButton() { return _Button; }
         bool GetButtonState()   	{ if (lv_obj_has_state(_Button, LV_STATE_CHECKED)) return true; else return false; }

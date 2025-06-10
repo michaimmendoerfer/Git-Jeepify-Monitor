@@ -10,8 +10,10 @@ CompThing::CompThing()
     _PeriphVisible    = true;
     _ValueVisible     = false;
     _SystemVisible    = false;
+    _GraphVisible     = false;
     _PeriphValueCombo = true;
     _dBmVisible       = false;
+    _GraphValuePos    = -1;
 }
 CompThing::~CompThing()
 {
@@ -25,6 +27,30 @@ void CompThing::Update()
 void CompThing::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb)
 {
 
+}
+void CompThing::GraphZeichnen(int x, int y, int Width, int Height, int min, int max, int Anz, int SNr)
+{
+    
+    int Start = Graph[_Periph->GetPos()].Index;
+        
+    for (int bar=0; bar<Anz; bar++)
+    {
+        int BarWidth  = Width/Anz;
+        int BarHeight = Height/(max-min);
+        int PosX1 = x+Width - BarWidth*bar+1;
+        int PosX2 = x+Width - BarWidth*bar;
+        int PosY1 = y;
+        int PosY2 = y-BarHeight;
+
+        lv_obj_t *bar1 = lv_bar_create(lv_scr_act());
+        lv_bar_set_range(bar1, min, max);
+        lv_obj_set_size(bar1, BarWidth, BarHeight);
+        lv_obj_set_pos(bar1, PosX1, PosY2);
+        lv_bar_set_value(bar1, Graph[_Periph->GetPos()].Value[bar][_GraphValuePos], LV_ANIM_OFF);
+
+        Start--;
+        if (Start < 0) Start = Anz;
+    }
 }
 void CompThing::SetStyle(lv_obj_t *obj)
 {
@@ -47,6 +73,8 @@ CompButton::CompButton()
 {
     _ClassType = 1;
 	_SpinnerVisible = false;
+    _GraphVisible = false;
+    _GraphValuePos = 0;
 }
 CompButton::~CompButton()
 {
@@ -607,6 +635,10 @@ void CompSensor::Update()
     {
         lv_obj_add_flag(_LblValue, LV_OBJ_FLAG_HIDDEN);
     }  
+    if (_GraphVisible) 
+    {
+        //GraphZeichnen()
+    }
 }
 
 CompMeter::CompMeter() 
@@ -616,6 +648,7 @@ CompMeter::CompMeter()
     _ValueVisible = true;
     _SystemVisible = false;
     _PeriphValueCombo = false;
+    _GraphVisible = true;
     _dBmVisible = true;
 }
 CompMeter::~CompMeter() 
@@ -658,7 +691,8 @@ void CompMeter::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
 	
 	if (_Periph->GetType() == SENS_TYPE_AMP)
 	{
-		lv_meter_set_scale_ticks(_Button, _Scale, 41, 2, 10, lv_palette_main(LV_PALETTE_GREY));
+		_GraphValuePos = 3;
+        lv_meter_set_scale_ticks(_Button, _Scale, 41, 2, 10, lv_palette_main(LV_PALETTE_GREY));
     	lv_meter_set_scale_major_ticks(_Button, _Scale, 5, 4, 15, lv_color_black(), 15);
     	lv_meter_set_scale_range(_Button, _Scale, 0, 400, 240, 150);
 	
@@ -680,7 +714,8 @@ void CompMeter::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
 	}
 	else if (_Periph->GetType() == SENS_TYPE_VOLT)
 	{	
-		lv_meter_set_scale_ticks(_Button, _Scale, 31, 2, 10, lv_palette_main(LV_PALETTE_GREY));
+		_GraphValuePos = 2;
+        lv_meter_set_scale_ticks(_Button, _Scale, 31, 2, 10, lv_palette_main(LV_PALETTE_GREY));
     	lv_meter_set_scale_major_ticks(_Button, _Scale, 5, 4, 15, lv_color_black(), 15);
     	lv_meter_set_scale_range(_Button, _Scale, 90, 150, 240, 150);
 	
@@ -795,4 +830,9 @@ void CompMeter::Update()
 	{
 		lv_obj_add_flag(_LblValue, LV_OBJ_FLAG_HIDDEN);
 	}
+
+    if (_GraphVisible)
+    {
+        //GraphZeichnen(x, y, Si) 
+    }
 }

@@ -22,6 +22,13 @@
 #define DEBUG2(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 1)) Serial.printf(__VA_ARGS__)
 #define DEBUG3(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 2)) Serial.printf(__VA_ARGS__)
 
+#define RECORDED_VALUES 10
+struct struct_Graph {
+  float    Value[RECORDED_VALUES][4];
+  uint32_t TSValue[RECORDED_VALUES];
+  int      Index;
+};
+
 void   PrintMAC(const uint8_t * mac_addr);
 
 void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
