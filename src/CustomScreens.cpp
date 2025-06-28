@@ -71,10 +71,17 @@ void Ui_Single_Prepare(lv_event_t * e)
 				CompThingArray[Pos] = NULL;
 			}
 
-		if      (ActivePeriphShown->IsSensor()) CompThingArray[Pos] = new CompMeter;
-		else if (ActivePeriphShown->IsSwitch()) CompThingArray[Pos] = new CompButton;
-		
-		CompThingArray[Pos]->Setup(ui_ScrSingle, 0, 0, 0, SCREEN_RES_HOR, ActivePeriphShown, Ui_Single_Clicked);
+		//size noch nicht gut
+		if (ActivePeriphShown->IsSensor()) 
+		{
+			CompThingArray[Pos] = new CompMeter;
+			CompThingArray[Pos]->Setup(ui_ScrSingle, 0, 0, 0, SCREEN_RES_HOR, ActivePeriphShown, Ui_Single_Clicked);
+		}
+		else if (ActivePeriphShown->IsSwitch()) 
+		{
+			CompThingArray[Pos] = new CompButton;
+			CompThingArray[Pos]->Setup(ui_ScrSingle, 0, 0, 0, 2, ActivePeriphShown, Ui_Single_Clicked);
+		}
 		CompThingArray[Pos]->Update();
 		
 		static uint32_t user_data = 10;

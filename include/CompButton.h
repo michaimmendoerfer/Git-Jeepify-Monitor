@@ -52,6 +52,8 @@ class CompThing {
         int _Y_Value;
         int _GraphValuePos;
 
+        lv_obj_t *bar[10];
+
         lv_event_cb_t _event_cb;
 
     public:
@@ -59,8 +61,9 @@ class CompThing {
         virtual ~CompThing();
         virtual void Update();
         virtual void Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb);
-        void GraphZeichnen(int x, int y, int Width, int Height, int min, int max, int Anz, int SNr);
-
+        void GraphZeichnen(int x, int y, int Width, int Height, int Anz);
+        void GraphUpdate();
+        
         PeriphClass *GetPeriph() { return _Periph; }
         lv_obj_t*    GetButton() { return _Button; }
         bool GetButtonState()   	{ if (lv_obj_has_state(_Button, LV_STATE_CHECKED)) return true; else return false; }

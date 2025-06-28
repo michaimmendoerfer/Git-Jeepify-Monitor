@@ -1,11 +1,14 @@
 #define DEBUG_LEVEL 3
-#define KILL_NVS 1
+//#define KILL_NVS 
 
 #include "main.h"
 #ifdef MODULE_MONITOR_360 
     #include "scr_st77916.h"
 #endif
 #ifdef MODULE_MONITOR_240
+    #include "scr_tft240round.h"
+#endif
+#ifdef MODULE_MONITOR_240_S3
     #include "scr_tft240round.h"
 #endif
 
@@ -421,6 +424,9 @@ void ToggleWebServer()
 #ifdef MODULE_MONITOR_240
     void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
 #endif
+#ifdef MODULE_MONITOR_240_S3
+    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
+#endif
 {
     PeerClass *P;
     
@@ -492,7 +498,6 @@ void ToggleWebServer()
                     #endif
 
                     if (Module.GetDebugMode()) ShowMessageBox("Peer added...", doc["Node"], 2000, 150);
-                    SendPairingConfirm(P); 
 
                     for (int Si=0; Si<MAX_PERIPHERALS; Si++) 
                     {
@@ -504,6 +509,7 @@ void ToggleWebServer()
                             int   _PeriphType = atoi(strtok(buf, ";"));
                             char *_PeriphName = strtok(NULL, ";");
                             P->PeriphSetup(Si, _PeriphName, _PeriphType, P->GetId()); 
+                            
                             P->SetPeriphChanged(Si, true);
                             PeriphList.add(P->GetPeriphPtr(Si));
                             SaveNeeded = true;
@@ -511,6 +517,11 @@ void ToggleWebServer()
                         }
                     }
                 }
+                if (P) // already known or just created - confirm
+                {
+                    SendPairingConfirm(P);
+                }
+                
                 break;
             case SEND_CMD_STATUS:
                 if (P)
@@ -593,6 +604,7 @@ void ToggleWebServer()
             SavePeers();
             SaveNeeded = false;
             if (Module.GetDebugMode()) ShowMessageBox("Saving...", "complete", 1000, 200);
+            ESP.restart();
         }
     }
     else // Error bei JSON
@@ -647,7 +659,7 @@ void setup()
 }
 void loop() 
 {
-  lv_timer_handler(); /* let the GUI do its work */
+  lv_timer_handler(); 
   delay(10);
 }
 #pragma endregion Main
@@ -691,8 +703,6 @@ void SendPing(lv_timer_t * timer) {
     for (int i=0; i<PeerList.size(); i++)
     {
         P = PeerList.get(i);
-        //PrintMAC(P->GetBroadcastAddress());
-        //Serial.printf(" - Sende Stay Alive an: %s\n\r", P->GetName());
         
         if (P->GetType() > 0) esp_now_send(P->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  
     }

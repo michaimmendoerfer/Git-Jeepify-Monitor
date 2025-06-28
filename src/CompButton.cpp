@@ -2,7 +2,7 @@
 #include "main.h"
 #include "CompButton.h"
 
-//#define DEBUG 1
+#define DEBUG_LEVEL 1
 
 CompThing::CompThing()
 {
@@ -18,7 +18,13 @@ CompThing::CompThing()
 CompThing::~CompThing()
 {
 	if (_Button)  { lv_obj_del(_Button); _Button = NULL; }
-    	
+    if (_GraphVisible)
+    {
+        for (int barIndex=0; barIndex<10; barIndex++)
+        {
+            lv_obj_del(bar[barIndex]); bar[barIndex] = NULL; 
+        }
+    }
 }
 void CompThing::Update()
 { 
@@ -28,28 +34,34 @@ void CompThing::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
 {
 
 }
-void CompThing::GraphZeichnen(int x, int y, int Width, int Height, int min, int max, int Anz, int SNr)
+void CompThing::GraphZeichnen(int x, int y, int Width, int Height, int Anz)
 {
-    
-    int Start = Graph[_Periph->GetPos()].Index;
-        
-    for (int bar=0; bar<Anz; bar++)
+    for (int barIndex=0; barIndex<Anz; barIndex++)
     {
-        int BarWidth  = Width/Anz;
-        int BarHeight = Height/(max-min);
-        int PosX1 = x+Width - BarWidth*bar+1;
-        int PosX2 = x+Width - BarWidth*bar;
-        int PosY1 = y;
-        int PosY2 = y-BarHeight;
-
-        lv_obj_t *bar1 = lv_bar_create(lv_scr_act());
-        lv_bar_set_range(bar1, min, max);
-        lv_obj_set_size(bar1, BarWidth, BarHeight);
-        lv_obj_set_pos(bar1, PosX1, PosY2);
-        lv_bar_set_value(bar1, Graph[_Periph->GetPos()].Value[bar][_GraphValuePos], LV_ANIM_OFF);
-
-        Start--;
-        if (Start < 0) Start = Anz;
+        int BarWidth  = Width/(Anz);
+        int BarHeight = Height;
+        int PosX = x - Width/2 + (BarWidth*barIndex);//x-Width + BarWidth*(barIndex);
+        int PosY = y;
+        
+        bar[barIndex] = lv_bar_create(lv_scr_act());
+        if (_Periph->GetType() == SENS_TYPE_AMP)  lv_bar_set_range(bar[barIndex],  0, 40);
+        if (_Periph->GetType() == SENS_TYPE_VOLT) lv_bar_set_range(bar[barIndex], 10, 15);
+        lv_obj_set_size(bar[barIndex], BarWidth, BarHeight);
+        lv_obj_set_pos(bar[barIndex], PosX, PosY);
+    }
+}
+void CompThing::GraphUpdate()
+{
+    int GraphIndex = Graph[_Periph->GetPos()].Index;
+    DEBUG3 ("GraphUpdate: GraphIndex: %d\n\r", GraphIndex);
+    for (int barIndex=0; barIndex<10; barIndex++)
+    {
+        //Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos] = random(12,15);
+        DEBUG3 ("Graph[%d].value[%d][%d] = %.2f\n\r", _Periph->GetPos(), GraphIndex, _GraphValuePos, Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos]);
+        lv_bar_set_value(bar[barIndex], Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos], LV_ANIM_OFF);
+        
+        GraphIndex--;
+        if (GraphIndex < 0) GraphIndex = RECORDED_VALUES-1;
     }
 }
 void CompThing::SetStyle(lv_obj_t *obj)
@@ -99,7 +111,7 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
 	
     switch (size)
     {
-        case 1:
+        case 360:
             if (SCREEN_RES_HOR == 360)
             {
                 _Width  =  70;
@@ -298,7 +310,7 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
 	    case 2:
             if (SCREEN_RES_HOR == 360)
             {
-                SetValuePos(70, lv_pct(-40));
+                SetValuePos(70, lv_pct(30));
 		        lv_obj_set_style_text_font(_LblValue, &lv_font_montserrat_18, LV_PART_MAIN | LV_STATE_DEFAULT);
             }
             if (SCREEN_RES_HOR == 240)
@@ -418,6 +430,7 @@ void CompButton::Update()
 CompSensor::CompSensor()
 {
     _ClassType = 2;
+    _GraphVisible = true;
 }
 CompSensor::~CompSensor()
 {
@@ -552,6 +565,8 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_style_pad_top(_Arc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(_Arc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
+    if (_GraphVisible) GraphZeichnen(x-_Width/2, y+_Height*0.3, _Width/2, _Height/5, RECORDED_VALUES);
+        
     lv_obj_add_event_cb(_Button, _event_cb, LV_EVENT_ALL, NULL);  
 }
 
@@ -635,10 +650,7 @@ void CompSensor::Update()
     {
         lv_obj_add_flag(_LblValue, LV_OBJ_FLAG_HIDDEN);
     }  
-    if (_GraphVisible) 
-    {
-        //GraphZeichnen()
-    }
+    if (_GraphVisible) GraphUpdate();
 }
 
 CompMeter::CompMeter() 
@@ -710,6 +722,8 @@ void CompMeter::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
 		lv_meter_set_indicator_start_value(_Button, _Indic, 300);
 		lv_meter_set_indicator_end_value(_Button, _Indic, 400);
 
+        if (_GraphVisible) GraphZeichnen(SCREEN_RES_HOR/2, SCREEN_RES_VER*0.7, SCREEN_RES_HOR/3, SCREEN_RES_VER/15, RECORDED_VALUES);
+        
 		lv_obj_add_event_cb(_Button, Meter_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
 	}
 	else if (_Periph->GetType() == SENS_TYPE_VOLT)
@@ -736,6 +750,8 @@ void CompMeter::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
 		_Indic = lv_meter_add_scale_lines(_Button, _Scale, lv_palette_main(LV_PALETTE_RED), lv_palette_main(LV_PALETTE_RED), false, 0);
 		lv_meter_set_indicator_start_value(_Button, _Indic, 144);
 		lv_meter_set_indicator_end_value(_Button, _Indic, 150);
+
+        if (_GraphVisible) GraphZeichnen(SCREEN_RES_HOR/2, SCREEN_RES_VER*0.7, SCREEN_RES_HOR/3, SCREEN_RES_VER/15, RECORDED_VALUES);
 
 		//Add draw callback to override default values
 		lv_obj_add_event_cb(_Button, Meter_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
@@ -831,8 +847,5 @@ void CompMeter::Update()
 		lv_obj_add_flag(_LblValue, LV_OBJ_FLAG_HIDDEN);
 	}
 
-    if (_GraphVisible)
-    {
-        //GraphZeichnen(x, y, Si) 
-    }
+    if (_GraphVisible) GraphUpdate();
 }
