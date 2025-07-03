@@ -52,7 +52,8 @@ class CompThing {
         int _Y_Value;
         int _GraphValuePos;
 
-        lv_obj_t *bar[10];
+        lv_obj_t *_Chart;
+        lv_chart_series_t * _ChartSerie;
 
         lv_event_cb_t _event_cb;
 
@@ -61,8 +62,8 @@ class CompThing {
         virtual ~CompThing();
         virtual void Update();
         virtual void Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb);
-        void GraphZeichnen(int x, int y, int Width, int Height, int Anz);
-        void GraphUpdate();
+        void ChartInit(int x, int y, int Width, int Height, int Anz);
+        void ChartUpdate();
         
         PeriphClass *GetPeriph() { return _Periph; }
         lv_obj_t*    GetButton() { return _Button; }
