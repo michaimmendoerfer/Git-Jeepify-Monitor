@@ -38,6 +38,9 @@ void CompThing::ChartInit(int x, int y, int Width, int Height, int Anz)
     if (_Periph->GetType() == SENS_TYPE_VOLT) lv_chart_set_range(_Chart,  LV_CHART_AXIS_PRIMARY_Y, 0, 15);
     lv_obj_set_size(_Chart, Width, Height);
     lv_obj_set_pos(_Chart, x, y);
+    lv_obj_set_style_size(_Chart, 0, LV_PART_INDICATOR);
+    lv_obj_set_align(_Chart, LV_ALIGN_CENTER);
+
     lv_chart_set_type(_Chart, LV_CHART_TYPE_LINE); 
     lv_chart_set_point_count(_Chart, RECORDED_VALUES);
     _ChartSerie = lv_chart_add_series(_Chart, lv_palette_main(LV_PALETTE_GREEN), LV_CHART_AXIS_SECONDARY_Y);
@@ -49,7 +52,7 @@ void CompThing::ChartUpdate()
     DEBUG3 ("GraphUpdate: GraphIndex: %d\n\r", GraphIndex);
     for (int ChartIndex=0; ChartIndex<RECORDED_VALUES; ChartIndex++);
     {
-        //Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos] = random(12,15);
+        Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos] = random(0,15);
         //DEBUG3 ("Graph[%d].value[%d][%d] = %.2f\n\r", _Periph->GetPos(), GraphIndex, _GraphValuePos, Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos]);
         lv_chart_set_next_value(_Chart, _ChartSerie, Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos]);
         GraphIndex--;
@@ -423,7 +426,7 @@ void CompButton::Update()
 CompSensor::CompSensor()
 {
     _ClassType = 2;
-    _GraphVisible = true;
+    _GraphVisible = false;
 }
 CompSensor::~CompSensor()
 {
@@ -558,7 +561,7 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_style_pad_top(_Arc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(_Arc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
-    if (_GraphVisible) ChartInit(x-_Width/2, y+_Height*0.3, _Width/2, _Height/5, RECORDED_VALUES);
+    if (_GraphVisible) ChartInit(x-_Width/2, y+_Height*0.3, _Width/2, _Height/4, RECORDED_VALUES);
         
     lv_obj_add_event_cb(_Button, _event_cb, LV_EVENT_ALL, NULL);  
 }
@@ -653,7 +656,7 @@ CompMeter::CompMeter()
     _ValueVisible = true;
     _SystemVisible = false;
     _PeriphValueCombo = false;
-    _GraphVisible = true;
+    _GraphVisible = false;
     _dBmVisible = true;
 }
 CompMeter::~CompMeter() 
