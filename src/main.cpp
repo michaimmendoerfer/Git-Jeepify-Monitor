@@ -738,7 +738,6 @@ void SendPing(lv_timer_t * timer) {
         }
     }
 }
-
 void SendPairingConfirm(PeerClass *P) {
   JsonDocument doc; String jsondata; 
   
