@@ -1,6 +1,7 @@
 #define DEBUG_LEVEL 3
 //#define KILL_NVS 
 
+
 #include "main.h"
 #ifdef MODULE_MONITOR_360 
     #include "scr_st77916.h"
@@ -25,6 +26,7 @@ const char *ArrPeriph[MAX_PERIPHERALS]   = {"Per0", "Per1", "Per2", "Per3", "Per
 int PeerCount;
 Preferences preferences;
 uint8_t broadcastAddressAll[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+const char *broadCastAddressAllC = "FFFFFFFFFFFF";
 
 struct ConfirmStruct {
     uint8_t  Address[6];
@@ -34,7 +36,13 @@ struct ConfirmStruct {
     bool     Confirmed;
 };
 
+struct ReceivedMessagesStruct {
+    uint8_t  From[6];
+    uint32_t TS;
+};
+
 MyLinkedList<ConfirmStruct*> ConfirmList = MyLinkedList<ConfirmStruct*>();
+MyLinkedList<ReceivedMessagesStruct*> ReceivedMessagesList = MyLinkedList<ReceivedMessagesStruct*>();
 
 PeerClass Module;
 
@@ -447,26 +455,44 @@ void ToggleWebServer()
 
     if (!error) // erfolgreich JSON
     {
-        strcpy(buf, doc["Node"]);
-
-        char       *_PeerName    = strtok(buf, ";");
-        uint32_t    _Uptime      = atoi(strtok(NULL, ";"));
-        int         _Status      = atoi(strtok(NULL, ";"));
-        int         _Type        = (int) (doc["Type"]);
-        const char *_PeerVersion = doc["Version"];
-        int         _Order       = (int)doc["Order"];   
-        int         _TSConfirm   = (int)doc["TSConfirm"];
+        int         _Status      = doc[SEND_CMD_JSON_STATUS];
+        int         _Type        = (int) (doc[SEND_CMD_JSON_MODULE_TYPE]);
+        int         _Order       = (int)doc[SEND_CMD_JSON_ORDER];   
+        int         _TS          = (int)doc[SEND_CMD_JSON_TS];
+        const char *_PeerName    = doc[SEND_CMD_JSON_PEER_NAME];
+        const char *_PeerVersion = doc[SEND_CMD_JSON_VERSION];
         
-        #ifdef MODULE_MONITOR_360 
-            P = FindPeerByMAC(info->src_addr);
-        #endif
-        #ifdef MODULE_MONITOR_240
-            P = FindPeerByMAC(mac);
-        #endif
+        uint8_t _From[6];
+        const char *MAC = doc[SEND_CMD_JSON_FROM];
+
+        MacCharToByte(_From, (char *) MAC);
+
+        P = FindPeerByMAC(_From);
 
         if (P)
         {
-            if ((P) and (Module.GetDebugMode()) and (millis() - P->GetTSLastSeen() > OFFLINE_INTERVAL)) ShowMessageBox("Peer online", P->GetName(), 1000, 200);
+            //already recevied?
+            if (ReceivedMessagesList.size() > 0)
+            { 
+                for (int i=ReceivedMessagesList.size()-1; i>=0; i--)
+                {
+                    ReceivedMessagesStruct *RMItem = ReceivedMessagesList.get(i);
+                    
+                    if (!((RMItem->From == _From) and (RMItem->TS == _TS)))
+                    {
+                        DEBUG3 ("Message schon verarbeitet\\r");
+                        return;
+                    }
+                    else
+                    {
+                        ReceivedMessagesStruct *RMItem = new ReceivedMessagesStruct;
+                        memcpy(RMItem->From, P->GetBroadcastAddress(), 6);
+                        RMItem->TS = _TS;
+                        ReceivedMessagesList.add(RMItem);
+                    }
+                }
+                            
+            if ((Module.GetDebugMode()) and (millis() - P->GetTSLastSeen() > OFFLINE_INTERVAL)) ShowMessageBox("Peer online", P->GetName(), 1000, 200);
             P->SetTSLastSeen(millis());
             #ifdef MODULE_MONITOR_360 
                 P->SetdBm(info->rx_ctrl->rssi); 
@@ -489,15 +515,10 @@ void ToggleWebServer()
                     SaveNeeded = true;
                     NewPeer    = true;
                     Module.SetPairMode(false); TSPair = 0;
-                    
-                    #ifdef MODULE_MONITOR_360 
-                        P->Setup(_PeerName, _Type, _PeerVersion, info->src_addr, (bool) bitRead(_Status, 1), (bool) bitRead(_Status, 0), (bool) bitRead(_Status, 2), (bool) bitRead(_Status, 3));                    
-                    #endif
-                    #ifdef MODULE_MONITOR_240
-                        P->Setup(_PeerName, _Type, _PeerVersion, mac,            (bool) bitRead(_Status, 1), (bool) bitRead(_Status, 0), (bool) bitRead(_Status, 2), (bool) bitRead(_Status, 3));                    
-                    #endif
+        
+                    P->Setup(_PeerName, _Type, _PeerVersion, _From, (bool) bitRead(_Status, 1), (bool) bitRead(_Status, 0), (bool) bitRead(_Status, 2), (bool) bitRead(_Status, 3));                    
 
-                    if (Module.GetDebugMode()) ShowMessageBox("Peer added...", doc["Node"], 2000, 150);
+                    if (Module.GetDebugMode()) ShowMessageBox("Peer added...", doc[SEND_CMD_JSON_PEER_NAME], 2000, 150);
 
                     for (int Si=0; Si<MAX_PERIPHERALS; Si++) 
                     {
@@ -581,15 +602,15 @@ void ToggleWebServer()
                 break;
     
             case SEND_CMD_CONFIRM:
-                if ((P) and (doc["TSConfirm"].is<JsonVariant>()))
+                if ((P) and (doc[SEND_CMD_JSON_CONFIRM].is<JsonVariant>()))
                 {                    
-                    DEBUG2 ("Confirm (%lu) empfangen von %s\n\r", _TSConfirm, P->GetName());
+                    DEBUG2 ("Confirm (%lu) empfangen von %s\n\r", _TS, P->GetName());
                     for (int i=0; i<ConfirmList.size(); i++)
                     {
                         ConfirmStruct *TempConfirm;
                         TempConfirm = ConfirmList.get(i);
-                        DEBUG3 ("empfangener TS ist: %lu - durchsuchter TS (List[%d]) ist: %lu\n\r", _TSConfirm, i, TempConfirm->TSMessage);
-                        if (TempConfirm->TSMessage == _TSConfirm)
+                        DEBUG3 ("empfangener TS ist: %lu - durchsuchter TS (List[%d]) ist: %lu\n\r", _TS, i, TempConfirm->TSMessage);
+                        if (TempConfirm->TSMessage == _TS)
                         {
                             TempConfirm->Confirmed = true;
                             DEBUG2 ("Found at list[%d] - DELETED\n\r", i);
@@ -614,6 +635,7 @@ void ToggleWebServer()
         Serial.printf("jsondata was: %s\n\r", jsondata);
         return;
     }
+}
 }
 
 void setup() 
@@ -667,7 +689,7 @@ void loop()
 #pragma region Send-Things
 esp_err_t  JeepifySend(PeerClass *P, const uint8_t *data, size_t len, uint32_t TSConfirm, bool ConfirmNeeded = false)
 {
-    esp_err_t SendStatus = esp_now_send(P->GetBroadcastAddress(), data, len);
+    esp_err_t SendStatus = esp_now_send(broadcastAddressAll, data, len);
     
     DEBUG3 ("SendStatus was %d, ConfirmNeeded = %d\n\r", SendStatus, ConfirmNeeded);
     if (ConfirmNeeded)
@@ -687,26 +709,26 @@ esp_err_t  JeepifySend(PeerClass *P, const uint8_t *data, size_t len, uint32_t T
 }
 void SendPing(lv_timer_t * timer) {
     JsonDocument doc; String jsondata;
+    char mac[13];
 
     PeerClass *P;
     
-    doc["Node"] = NODE_NAME;   
-    doc["Order"] = SEND_CMD_STAY_ALIVE;
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM] = mac;
+    doc[SEND_CMD_JSON_TO]   = broadCastAddressAllC;
+    doc[SEND_CMD_JSON_TS]   = millis();
+    
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_STAY_ALIVE;
 
     if (Module.GetPairMode())
     {
-        doc["Pairing"] = "aktiv";
+        doc[SEND_CMD_JSON_PAIRING] = "aktiv";
     }
 
     serializeJson(doc, jsondata);  
     
-    for (int i=0; i<PeerList.size(); i++)
-    {
-        P = PeerList.get(i);
-        
-        if (P->GetType() > 0) esp_now_send(P->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  
-    }
-
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250);  
+    
     if (ConfirmList.size() > 0)
     { 
         for (int i=ConfirmList.size()-1; i>=0; i--)
@@ -733,28 +755,44 @@ void SendPing(lv_timer_t * timer) {
             else
             {
                 DEBUG3 ("%d: reSending Msg: %s from ConfirmList Try: %d\n\r", millis(), Confirm->Message, Confirm->Try);
-                esp_err_t SendStatus = esp_now_send(Confirm->Address, (uint8_t*) Confirm->Message, 200); 
+                esp_err_t SendStatus = esp_now_send(broadcastAddressAll, (uint8_t*) Confirm->Message, 250); 
             }     
+        }
+    }
+
+    if (ReceivedMessagesList.size() > 0)
+    {  
+        for (int i=ReceivedMessagesList.size()-1; i>=0; i--)
+        {
+            ReceivedMessagesStruct *RMItem = ReceivedMessagesList.get(i);
+            
+            if (millis() > RMItem->TS + SEND_CMD_MSG_HOLD*1000)
+            {
+                DEBUG3 ("Message aus RMList entfernt\n\r");
+                ReceivedMessagesList.remove(i);
+                delete RMItem;
+            }
         }
     }
 }
 void SendPairingConfirm(PeerClass *P) {
-  JsonDocument doc; String jsondata; 
-  
-  uint8_t *Broadcast = P->GetBroadcastAddress();
-  
-  doc["Node"]     = Module.GetName();   
-  doc["Peer"]     = P->GetName();
-  doc["Order"]    = SEND_CMD_YOU_ARE_PAIRED;
-  doc["Type"]     = Module.GetType();
-  doc["B0"]       = (uint8_t)Broadcast[0]; doc["B1"] = (uint8_t)Broadcast[1]; doc["B2"] = (uint8_t)Broadcast[2];
-  doc["B3"]       = (uint8_t)Broadcast[3]; doc["B4"] = (uint8_t)Broadcast[4]; doc["B5"] = (uint8_t)Broadcast[5];
+    JsonDocument doc; String jsondata; 
 
-  serializeJson(doc, jsondata);  
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]        = mac;
+    MacByteToChar(mac, P->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]          = mac;
+    doc[SEND_CMD_JSON_TS]          = millis();
+    doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_YOU_ARE_PAIRED;
+    doc[SEND_CMD_JSON_MODULE_TYPE] = Module.GetType();
+
+    serializeJson(doc, jsondata);  
   
-  TSMsgSnd = millis();
-  esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200); 
-  DEBUG2 ("Sent you are paired\n\r%s\n\r", jsondata.c_str());  
+    TSMsgSnd = millis();
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250); 
+    DEBUG2 ("Sent you are paired\n\r%s\n\r", jsondata.c_str());  
      
 }
 bool ToggleSwitch(PeerClass *P, int PerNr)
@@ -765,10 +803,16 @@ bool ToggleSwitch(PeriphClass *Periph)
 {
     JsonDocument doc; String jsondata; 
     
-    doc["From"]         = Module.GetName();  
-    doc["Order"]        = SEND_CMD_SWITCH_TOGGLE;
-    doc["PeriphName"]   = Periph->GetName();
-    doc["PeriphPos"]    = Periph->GetPos();
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]        = mac;
+    MacByteToChar(mac, FindPeerById(Periph->GetPeerId())->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]          = mac;
+    doc[SEND_CMD_JSON_TS]          = millis();
+    doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_SWITCH_TOGGLE;
+    doc[SEND_CMD_JSON_PERIPH_NAME] = Periph->GetName();
+    doc[SEND_CMD_JSON_PERIPH_POS]  = Periph->GetPos();
 
     serializeJson(doc, jsondata);  
     
@@ -779,18 +823,25 @@ bool ToggleSwitch(PeriphClass *Periph)
     return true;
 }
 void SendCommand(PeerClass *P, int Cmd, String Value) {
-  JsonDocument doc; String jsondata; 
-  
-  doc["From"]  = Module.GetName();   
-  doc["Order"] = Cmd;
-  if (Value != "") doc["Value"] = Value;
-  
-  serializeJson(doc, jsondata);  
-  
-  TSMsgSnd = millis();
-  esp_now_send(P->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
-  DEBUG3 ("%s", jsondata.c_str());
+    JsonDocument doc; String jsondata; 
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]      = mac;
+    MacByteToChar(mac, P->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]        = mac;
+    doc[SEND_CMD_JSON_TS]        = millis();
+    doc[SEND_CMD_JSON_ORDER]     = Cmd;
+    if (Value != "") 
+        doc[SEND_CMD_JSON_VALUE] = Value;
+    
+    serializeJson(doc, jsondata);  
+    
+    TSMsgSnd = millis();
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    DEBUG3 ("%s", jsondata.c_str());
 }
+
 #pragma endregion Send-Things
 #pragma region System-Screens
 void PrepareJSON() {
@@ -861,11 +912,16 @@ void CalibVolt() {
     
     uint32_t TSConfirm = millis();
 
-    doc["Node"]  = Module.GetName();  
-    doc["Order"] = SEND_CMD_VOLTAGE_CALIB;
-    doc["NewVoltage"] = lv_textarea_get_text(ui_TxtVolt);
-    doc["TSConfirm"] = TSConfirm;
-    
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]        = mac;
+    MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]          = mac;
+    doc[SEND_CMD_JSON_TS]          = TSConfirm;
+    doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_VOLTAGE_CALIB;
+    doc[SEND_CMD_JSON_VALUE]       = lv_textarea_get_text(ui_TxtVolt);
+     
     serializeJson(doc, jsondata);  
 
     JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 100, TSConfirm, true);  
@@ -881,10 +937,14 @@ void CalibAmp()
     JsonDocument doc; String jsondata;
 
     uint32_t TSConfirm = millis();
+    char mac[13];
 
-    doc["Node"]  = Module.GetName();  
-    doc["Order"] = SEND_CMD_CURRENT_CALIB;
-    doc["TSConfirm"] = TSConfirm;
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]        = mac;
+    MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]          = mac;
+    doc[SEND_CMD_JSON_TS]          = TSConfirm;
+    doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_CURRENT_CALIB;
     
     serializeJson(doc, jsondata);  
     JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 100, TSConfirm, true);  
@@ -896,6 +956,21 @@ void PrintMAC(const uint8_t * mac_addr){
   snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
            mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
   Serial.print(macStr);
+}
+void MacCharToByte(uint8_t *mac, char *MAC)
+{
+    sscanf(MAC, "%2x%2x%2x%2x%2x%2x", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+}
+void MacByteToChar(char *MAC, uint8_t *mac)
+{
+    sprintf(MAC, "%2.2X%2.2X%2.2X%2.2X%2.2X%2.2X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+void GenerateMeessageID(PeerClass *P, char *ID)
+{
+    uint8_t *mac;
+    mac = Module.GetBroadcastAddress();
+    sprintf(ID, "%2.2X%2.2X%2.2X%2.2X%2.2X%2.2X;%lu", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], millis());
 }
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) 
 { 
