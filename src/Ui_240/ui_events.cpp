@@ -507,18 +507,24 @@ void Ui_Init_Custom(lv_event_t * e)
 
 	Ui_LedRcv  = lv_led_create(lv_layer_top());
 	lv_obj_set_size(Ui_LedRcv, LEDSize, LEDSize);
-    lv_obj_align(Ui_LedRcv, LV_ALIGN_CENTER, 0, 170);
+	if (SCREEN_RES_VER == 240) lv_obj_align(Ui_LedRcv, LV_ALIGN_CENTER, 0, 107);
+	else lv_obj_align(Ui_LedRcv, LV_ALIGN_CENTER, 0, 170);
+
     lv_led_set_color(Ui_LedRcv, lv_palette_main(LV_PALETTE_GREEN));
 	lv_led_off(Ui_LedRcv);
 
     Ui_LedSnd  = lv_led_create(lv_layer_top());
 	lv_obj_set_size(Ui_LedSnd, LEDSize, LEDSize);
-    lv_obj_align(Ui_LedSnd, LV_ALIGN_CENTER, -20, 167);
+	if (SCREEN_RES_VER == 240) lv_obj_align(Ui_LedSnd, LV_ALIGN_CENTER, -20, 104);
+	else lv_obj_align(Ui_LedSnd, LV_ALIGN_CENTER, -20, 167);
+	
     lv_led_set_color(Ui_LedSnd, lv_palette_main(LV_PALETTE_BLUE));
 
     Ui_LedPair  = lv_led_create(lv_layer_top());
     lv_obj_set_size(Ui_LedPair, LEDSize, LEDSize);
-	lv_obj_align(Ui_LedPair, LV_ALIGN_CENTER, 20, 167);
+	if (SCREEN_RES_VER == 240) lv_obj_align(Ui_LedPair, LV_ALIGN_CENTER, 20, 104);
+	else lv_obj_align(Ui_LedPair, LV_ALIGN_CENTER, 20, 167);
+
     lv_led_set_color(Ui_LedPair, lv_palette_main(LV_PALETTE_RED));
 
 	//Keyboard

@@ -39,6 +39,7 @@ struct ConfirmStruct {
 struct ReceivedMessagesStruct {
     uint8_t  From[6];
     uint32_t TS;
+    uint32_t SaveTime;
 };
 
 MyLinkedList<ConfirmStruct*> ConfirmList = MyLinkedList<ConfirmStruct*>();
@@ -531,6 +532,7 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
             ReceivedMessagesStruct *RMItem = new ReceivedMessagesStruct;
             memcpy(RMItem->From, _From, 6);
             RMItem->TS = _TS;
+            RMItem->SaveTime = millis();
             ReceivedMessagesList.add(RMItem);
             DEBUG3 ("%d.Message registriert\n\r", ReceivedMessagesList.size());
             
@@ -732,7 +734,8 @@ void setup()
     ReportAll();
   
     static uint32_t user_data = 10;
-    lv_timer_t * TimerPing = lv_timer_create(SendPing, PING_INTERVAL,  &user_data);
+    lv_timer_t * TimerPing    = lv_timer_create(SendPing, PING_INTERVAL,  &user_data);
+    lv_timer_t * TimerGarbage = lv_timer_create(GarbageMessages, PING_INTERVAL,  &user_data);
 
     ui_init();
 }
@@ -744,6 +747,25 @@ void loop()
 #pragma endregion Main
 
 #pragma region Send-Things
+void GarbageMessages(lv_timer_t * timer)
+{
+    Serial.println("Garbage-Kollektion");
+    if (ReceivedMessagesList.size() > 0)
+    {  
+        for (int i=ReceivedMessagesList.size()-1; i>=0; i--)
+        {
+            ReceivedMessagesStruct *RMItem = ReceivedMessagesList.get(i);
+            
+            //Serial.printf("%lu: TS:%lu\n\r", millis(), RMItem->TS);
+            if (millis() > RMItem->SaveTime + SEND_CMD_MSG_HOLD*1000)
+            {
+                DEBUG3 ("Message aus RMList entfernt\n\r");
+                ReceivedMessagesList.remove(i);
+                delete RMItem;
+            }
+        }
+    }
+}
 esp_err_t  JeepifySend(PeerClass *P, const uint8_t *data, size_t len, uint32_t TSConfirm, bool ConfirmNeeded = false)
 {
     esp_err_t SendStatus = esp_now_send(broadcastAddressAll, data, len);
