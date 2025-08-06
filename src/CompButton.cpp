@@ -107,7 +107,7 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
 	
     switch (size)
     {
-        case 360:
+        case 1:
             if (SCREEN_RES_HOR == 360)
             {
                 _Width  =  70;

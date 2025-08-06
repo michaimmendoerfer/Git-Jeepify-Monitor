@@ -275,12 +275,14 @@ void Ui_Multi_Loaded(lv_event_t * e)
 			if (Periph->IsSensor())
 			{	
 				CompThingArray[Pos] = new CompSensor;
+					//CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 					CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Update();
 			}
 			else if (Periph->IsSwitch())
 			{
 				CompThingArray[Pos] = new CompButton;
+				//CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Update();
 			}

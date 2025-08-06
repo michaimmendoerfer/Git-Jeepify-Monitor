@@ -153,15 +153,22 @@ bool SendWebPeriphNameChange()
 {
     JsonDocument doc; String jsondata; 
 
-    doc["from"]    = Module.GetName();   
-    doc["Order"]   = SEND_CMD_UPDATE_NAME;
-    doc["NewName"] = ActiveWebPeriph->GetName();
-    doc["Pos"]     = ActiveWebPeriph->GetPos();
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]  = mac;
+    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_NAME;
+    doc[SEND_CMD_JSON_VALUE] = ActiveWebPeriph->GetName();
+    doc[SEND_CMD_JSON_PERIPH_POS] = ActiveWebPeriph->GetPos();
     
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(ActiveWebPeer->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -169,16 +176,22 @@ bool SendWebPeriphNameChange()
 bool SendWebPeerNameChange()
 {
     JsonDocument doc; String jsondata; 
-    
-    doc["from"]    = Module.GetName();
-    doc["Order"]   = SEND_CMD_UPDATE_NAME;
-    doc["NewName"] = ActiveWebPeer->GetName();
-    doc["Pos"]     = 99;
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]  = mac;
+    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_NAME;
+    doc[SEND_CMD_JSON_VALUE] = ActiveWebPeer->GetName();
+    doc[SEND_CMD_JSON_PERIPH_POS] = 99;
     
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(ActiveWebPeer->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -186,16 +199,22 @@ bool SendWebPeerNameChange()
 bool SendWebVinChange()
 {
     JsonDocument doc; String jsondata; 
-    
-    doc["from"]    = Module.GetName();  
-    doc["Order"]   = SEND_CMD_UPDATE_VIN;
-    doc["Value"]   = ActiveWebPeriph->GetVin();
-    doc["Pos"]     = ActiveWebPeriph->GetPos();
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]  = mac;
+    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_VIN;
+    doc[SEND_CMD_JSON_VALUE] = ActiveWebPeriph->GetVin();
+    doc[SEND_CMD_JSON_PERIPH_POS] = ActiveWebPeriph->GetPos();
     
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(ActiveWebPeer->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -203,16 +222,22 @@ bool SendWebVinChange()
 bool SendWebVperAmpChange()
 {
     JsonDocument doc; String jsondata; 
-    
-    doc["from"]    = Module.GetName();   
-    doc["Order"]   = SEND_CMD_UPDATE_VPERAMP;
-    doc["Value"]   = ActiveWebPeriph->GetVperAmp();
-    doc["Pos"]     = ActiveWebPeriph->GetPos();
-    
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]  = mac;
+    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_VPERAMP;
+    doc[SEND_CMD_JSON_VALUE] = ActiveWebPeriph->GetVperAmp();
+    doc[SEND_CMD_JSON_PERIPH_POS] = ActiveWebPeriph->GetPos();
+        
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(ActiveWebPeer->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -220,11 +245,18 @@ bool SendWebVperAmpChange()
 bool SendWebNullwertChange()
 {
     JsonDocument doc; String jsondata; 
+    char mac[13];
+
+    MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]  = mac;
+    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_NULLWERT;
+    doc[SEND_CMD_JSON_VALUE] = ActiveWebPeriph->GetNullwert();
+    doc[SEND_CMD_JSON_PERIPH_POS] = ActiveWebPeriph->GetPos();
     
-    doc["from"]    = Module.GetName();
-    doc["Order"]   = SEND_CMD_UPDATE_NULLWERT;
-    doc["Value"]   = ActiveWebPeriph->GetNullwert();
-    doc["Pos"]     = ActiveWebPeriph->GetPos();
     
     serializeJson(doc, jsondata);  
     
@@ -425,7 +457,14 @@ void ToggleWebServer()
 #pragma endregion WebServer
 
 #pragma region Main
-
+bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
+{
+    for (int i=0; i<6; i++)
+    {
+        if (MAC1[i] != MAC2[i]) return false;
+    }
+    return true;
+}
 #ifdef MODULE_MONITOR_360 
     void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
 #endif
@@ -439,8 +478,10 @@ void ToggleWebServer()
     PeerClass *P;
     
     char* buff = (char*) incomingData;   
+    
     JsonDocument doc; 
     String jsondata = String(buff); 
+
     
     String BufS; char Buf[50] = {};
     bool SaveNeeded = false;
@@ -449,28 +490,30 @@ void ToggleWebServer()
     
     jsondataBuf = jsondata;
     PrepareJSON();
-    DEBUG2 ("%s\n\r", jsondata.c_str());
-
+    
     DeserializationError error = deserializeJson(doc, jsondata);
 
     if (!error) // erfolgreich JSON
     {
-        int         _Status      = doc[SEND_CMD_JSON_STATUS];
-        int         _Type        = (int) (doc[SEND_CMD_JSON_MODULE_TYPE]);
+        int         _Status      = (int)doc[SEND_CMD_JSON_STATUS];
         int         _Order       = (int)doc[SEND_CMD_JSON_ORDER];   
-        int         _TS          = (int)doc[SEND_CMD_JSON_TS];
-        const char *_PeerName    = doc[SEND_CMD_JSON_PEER_NAME];
-        const char *_PeerVersion = doc[SEND_CMD_JSON_VERSION];
+        uint32_t    _TS          = (uint32_t)doc[SEND_CMD_JSON_TS];
         
         uint8_t _From[6];
-        const char *MAC = doc[SEND_CMD_JSON_FROM];
-
-        MacCharToByte(_From, (char *) MAC);
+        const char *MACF = doc[SEND_CMD_JSON_FROM];
+        MacCharToByte(_From, (char *) MACF);
+        uint8_t _To[6];
+        const char *MACT = doc[SEND_CMD_JSON_TO];
+        MacCharToByte(_To, (char *) MACT);
+        
+        if ( (memcmp(_To, Module.GetBroadcastAddress(), 6)) and (memcmp(_To, broadcastAddressAll, 6)) ) return;
+        DEBUG2 ("%s\n\rwird verarbeitet - Order:%d\n\r", jsondata.c_str(), _Order);
 
         P = FindPeerByMAC(_From);
-
+        
         if (P)
         {
+            Serial.printf("bekannter Peer: %s\n\r", P->GetName());
             //already recevied?
             if (ReceivedMessagesList.size() > 0)
             { 
@@ -478,20 +521,19 @@ void ToggleWebServer()
                 {
                     ReceivedMessagesStruct *RMItem = ReceivedMessagesList.get(i);
                     
-                    if (!((RMItem->From == _From) and (RMItem->TS == _TS)))
+                    if ( (memcmp(RMItem->From, _From, 6) == 0) and (RMItem->TS ==_TS) )
                     {
-                        DEBUG3 ("Message schon verarbeitet\\r");
+                        DEBUG3 ("Message schon verarbeitet\n\r");
                         return;
                     }
-                    else
-                    {
-                        ReceivedMessagesStruct *RMItem = new ReceivedMessagesStruct;
-                        memcpy(RMItem->From, P->GetBroadcastAddress(), 6);
-                        RMItem->TS = _TS;
-                        ReceivedMessagesList.add(RMItem);
-                    }
                 }
-                            
+            }   
+            ReceivedMessagesStruct *RMItem = new ReceivedMessagesStruct;
+            memcpy(RMItem->From, _From, 6);
+            RMItem->TS = _TS;
+            ReceivedMessagesList.add(RMItem);
+            DEBUG3 ("%d.Message registriert\n\r", ReceivedMessagesList.size());
+            
             if ((Module.GetDebugMode()) and (millis() - P->GetTSLastSeen() > OFFLINE_INTERVAL)) ShowMessageBox("Peer online", P->GetName(), 1000, 200);
             P->SetTSLastSeen(millis());
             #ifdef MODULE_MONITOR_360 
@@ -503,19 +545,23 @@ void ToggleWebServer()
         }
 
         TSMsgRcv = millis();
-
+        
         switch (_Order)
         {
             case SEND_CMD_PAIR_ME:
                 // new Peer wants to pair and module too - create it
                 if ((!P) and Module.GetPairMode())
                 {
+                    const char *_PeerName    = doc[SEND_CMD_JSON_PEER_NAME];
+                    int         _Type        = (int) (doc[SEND_CMD_JSON_MODULE_TYPE]);
+                    const char *_PeerVersion = doc[SEND_CMD_JSON_VERSION];
+                    
+                    Serial.println("neuen Peer erstellen");
                     P = new PeerClass();
                     PeerList.add(P);
                     SaveNeeded = true;
                     NewPeer    = true;
                     Module.SetPairMode(false); TSPair = 0;
-        
                     P->Setup(_PeerName, _Type, _PeerVersion, _From, (bool) bitRead(_Status, 1), (bool) bitRead(_Status, 0), (bool) bitRead(_Status, 2), (bool) bitRead(_Status, 3));                    
 
                     if (Module.GetDebugMode()) ShowMessageBox("Peer added...", doc[SEND_CMD_JSON_PEER_NAME], 2000, 150);
@@ -548,7 +594,13 @@ void ToggleWebServer()
                 if (P)
                 {
                     // check for module name change
-                    if (strcmp(_PeerName, P->GetName())) P->SetName(_PeerName);
+                    if (doc[SEND_CMD_JSON_PEER_NAME].is<JsonVariant>())
+                    {
+                        const char *_PeerName    = doc[SEND_CMD_JSON_PEER_NAME];
+                        Serial.printf("PeerName: %s - ", _PeerName);
+                        if (strcmp(_PeerName, P->GetName())) P->SetName(_PeerName);
+                    }    
+                    
                     for (int Si=0; Si<MAX_PERIPHERALS; Si++) 
                     {
                         //DEBUG3 ("Check values of: %s\n\r", ArrPeriph[Si]);
@@ -625,6 +677,7 @@ void ToggleWebServer()
             SavePeers();
             SaveNeeded = false;
             if (Module.GetDebugMode()) ShowMessageBox("Saving...", "complete", 1000, 200);
+            delay(500);
             ESP.restart();
         }
     }
@@ -636,7 +689,6 @@ void ToggleWebServer()
         return;
     }
 }
-}
 
 void setup() 
 {
@@ -644,8 +696,6 @@ void setup()
     Serial.begin(115200);
     scr_lvgl_init();
 
-    Module.Setup(NODE_NAME, NODE_TYPE, MODULE_VERSION, broadcastAddressAll, false, true, false, false);
-    
     #ifdef KILL_NVS
         nvs_flash_erase(); nvs_flash_init();
         while(1)
@@ -653,6 +703,13 @@ void setup()
     #endif
     
     WiFi.mode(WIFI_AP_STA);
+    WiFi.begin();
+    uint8_t MacTemp[6];
+    WiFi.macAddress(MacTemp);
+    //Module.SetBroadcastAddress(MacTemp);
+
+    Module.Setup(NODE_NAME, NODE_TYPE, MODULE_VERSION, MacTemp, false, true, false, false);
+    
     InitWebServer();
     
     WebServerActive = !WebServerActive;
@@ -714,10 +771,10 @@ void SendPing(lv_timer_t * timer) {
     PeerClass *P;
     
     MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM] = mac;
-    doc[SEND_CMD_JSON_TO]   = broadCastAddressAllC;
-    doc[SEND_CMD_JSON_TS]   = millis();
-    
+    doc[SEND_CMD_JSON_FROM]  = mac;
+    doc[SEND_CMD_JSON_TO]    = broadCastAddressAllC;
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
     doc[SEND_CMD_JSON_ORDER] = SEND_CMD_STAY_ALIVE;
 
     if (Module.GetPairMode())
@@ -787,7 +844,9 @@ void SendPairingConfirm(PeerClass *P) {
     doc[SEND_CMD_JSON_TS]          = millis();
     doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_YOU_ARE_PAIRED;
     doc[SEND_CMD_JSON_MODULE_TYPE] = Module.GetType();
-
+    doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_PEER_NAME]   = Module.GetName();
+    
     serializeJson(doc, jsondata);  
   
     TSMsgSnd = millis();
@@ -813,11 +872,12 @@ bool ToggleSwitch(PeriphClass *Periph)
     doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_SWITCH_TOGGLE;
     doc[SEND_CMD_JSON_PERIPH_NAME] = Periph->GetName();
     doc[SEND_CMD_JSON_PERIPH_POS]  = Periph->GetPos();
-
+    doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
+    
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(FindPeerById(Periph->GetPeerId())->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250);  //Sending "jsondata"  
     DEBUG3 ("%s", jsondata.c_str());
     
     return true;
@@ -831,6 +891,8 @@ void SendCommand(PeerClass *P, int Cmd, String Value) {
     MacByteToChar(mac, P->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TO]        = mac;
     doc[SEND_CMD_JSON_TS]        = millis();
+    doc[SEND_CMD_JSON_TTL]       = SEND_CMD_MSG_TTL;
+    
     doc[SEND_CMD_JSON_ORDER]     = Cmd;
     if (Value != "") 
         doc[SEND_CMD_JSON_VALUE] = Value;
@@ -838,7 +900,7 @@ void SendCommand(PeerClass *P, int Cmd, String Value) {
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250);  //Sending "jsondata"  
     DEBUG3 ("%s", jsondata.c_str());
 }
 
@@ -921,7 +983,9 @@ void CalibVolt() {
     doc[SEND_CMD_JSON_TS]          = TSConfirm;
     doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_VOLTAGE_CALIB;
     doc[SEND_CMD_JSON_VALUE]       = lv_textarea_get_text(ui_TxtVolt);
-     
+    doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_CONFIRM]     = 1;
+    
     serializeJson(doc, jsondata);  
 
     JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 100, TSConfirm, true);  
@@ -945,9 +1009,11 @@ void CalibAmp()
     doc[SEND_CMD_JSON_TO]          = mac;
     doc[SEND_CMD_JSON_TS]          = TSConfirm;
     doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_CURRENT_CALIB;
-    
+    doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
+    doc[SEND_CMD_JSON_CONFIRM]     = 1;
+        
     serializeJson(doc, jsondata);  
-    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 100, TSConfirm, true);  
+    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 200, TSConfirm, true);  
 
     DEBUG3 ("%s", jsondata.c_str());
 }
