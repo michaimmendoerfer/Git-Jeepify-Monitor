@@ -473,7 +473,7 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
     void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
 #endif
 #ifdef MODULE_MONITOR_240_S3
-    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
+    void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
 #endif
 {
     PeerClass *P;
@@ -483,6 +483,7 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
     JsonDocument doc; 
     String jsondata = String(buff); 
 
+    Serial.println(jsondata);
     
     String BufS; char Buf[50] = {};
     bool SaveNeeded = false;
@@ -510,31 +511,32 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
         if ( (memcmp(_To, Module.GetBroadcastAddress(), 6)) and (memcmp(_To, broadcastAddressAll, 6)) ) return;
         DEBUG2 ("%s\n\rwird verarbeitet - Order:%d\n\r", jsondata.c_str(), _Order);
 
+        //already recevied?
+        if (ReceivedMessagesList.size() > 0)
+        { 
+            for (int i=ReceivedMessagesList.size()-1; i>=0; i--)
+            {
+                ReceivedMessagesStruct *RMItem = ReceivedMessagesList.get(i);
+                
+                if ( (memcmp(RMItem->From, _From, 6) == 0) and (RMItem->TS ==_TS) )
+                {
+                    DEBUG3 ("Message schon verarbeitet\n\r");
+                    return;
+                }
+            }
+        }   
+        ReceivedMessagesStruct *RMItem = new ReceivedMessagesStruct;
+        memcpy(RMItem->From, _From, 6);
+        RMItem->TS = _TS;
+        RMItem->SaveTime = millis();
+        ReceivedMessagesList.add(RMItem);
+        DEBUG3 ("%d.Message registriert\n\r", ReceivedMessagesList.size());
+            
         P = FindPeerByMAC(_From);
         
         if (P)
         {
             Serial.printf("bekannter Peer: %s\n\r", P->GetName());
-            //already recevied?
-            if (ReceivedMessagesList.size() > 0)
-            { 
-                for (int i=ReceivedMessagesList.size()-1; i>=0; i--)
-                {
-                    ReceivedMessagesStruct *RMItem = ReceivedMessagesList.get(i);
-                    
-                    if ( (memcmp(RMItem->From, _From, 6) == 0) and (RMItem->TS ==_TS) )
-                    {
-                        DEBUG3 ("Message schon verarbeitet\n\r");
-                        return;
-                    }
-                }
-            }   
-            ReceivedMessagesStruct *RMItem = new ReceivedMessagesStruct;
-            memcpy(RMItem->From, _From, 6);
-            RMItem->TS = _TS;
-            RMItem->SaveTime = millis();
-            ReceivedMessagesList.add(RMItem);
-            DEBUG3 ("%d.Message registriert\n\r", ReceivedMessagesList.size());
             
             if ((Module.GetDebugMode()) and (millis() - P->GetTSLastSeen() > OFFLINE_INTERVAL)) ShowMessageBox("Peer online", P->GetName(), 1000, 200);
             P->SetTSLastSeen(millis());
