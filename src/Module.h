@@ -7,7 +7,7 @@
 //#define MODULE_MONITOR_240
 #define MODULE_MONITOR_240_S3
 
-#define MODULE_VERSION          "4.01"  
+#define MODULE_VERSION          "4.10"  
 #define PROTOKOLL_VERSION       "3.01"
 
 #ifdef MODULE_MONITOR_360

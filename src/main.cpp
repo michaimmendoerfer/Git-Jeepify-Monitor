@@ -473,7 +473,7 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
     void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
 #endif
 #ifdef MODULE_MONITOR_240_S3
-    void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
+    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
 #endif
 {
     PeerClass *P;
@@ -541,6 +541,9 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
             if ((Module.GetDebugMode()) and (millis() - P->GetTSLastSeen() > OFFLINE_INTERVAL)) ShowMessageBox("Peer online", P->GetName(), 1000, 200);
             P->SetTSLastSeen(millis());
             #ifdef MODULE_MONITOR_360 
+                P->SetdBm(info->rx_ctrl->rssi); 
+            #endif
+            #ifdef MODULE_MONITOR_240_S3
                 P->SetdBm(info->rx_ctrl->rssi); 
             #endif
             #ifdef MODULE_MONITOR_240
