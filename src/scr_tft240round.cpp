@@ -8,12 +8,7 @@
 #include <Module.h>
 
 TFT_eSPI tft = TFT_eSPI(SCREEN_RES_HOR, SCREEN_RES_VER); /* TFT instance */
-#ifdef MODULE_MONITOR_240   
-    CST816D Touch(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
-#endif
-#ifdef MODULE_MONITOR_240_S3  
-    CST816D Touch(11, 7, 6, 12);
-#endif
+CST816D Touch(I2C_SDA, I2C_SCL, TP_RST, TP_INT);
 
 #pragma region Globals
 static lv_disp_draw_buf_t draw_buf;

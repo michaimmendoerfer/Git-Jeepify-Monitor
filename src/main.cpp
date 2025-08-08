@@ -10,7 +10,7 @@
     #include "scr_tft240round.h"
 #endif
 #ifdef MODULE_MONITOR_240_S3
-    #include "scr_tft240round.h"
+    #include "scr_tft240round_s3.h"
 #endif
 
 #pragma region Globals
