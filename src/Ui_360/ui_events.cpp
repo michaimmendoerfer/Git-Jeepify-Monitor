@@ -498,6 +498,9 @@ void TopUpdateTimer(lv_timer_t * timer)
 		TSPair = 0;
 		Module.SetPairMode(false);
 	}
+	#ifdef BATTERY_PORT
+		lv_label_set_text_fmt(ui_LblMenuBatt, "%.2f", analogRead(BATTERY_PORT*BATTERY_DEVIDER));
+	#endif
 }
 
 void Ui_Init_Custom(lv_event_t * e)

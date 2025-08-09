@@ -496,6 +496,13 @@ void TopUpdateTimer(lv_timer_t * timer)
 		TSPair = 0;
 		Module.SetPairMode(false);
 	}
+	
+	#ifdef BATTERY_PORT
+		char buf[10];
+		dtostrf(analogRead(BATTERY_PORT) * BATTERY_DEVIDER / 4095 * 3.3, 0, 1, buf);
+		strcat(buf, "V");
+		lv_label_set_text(ui_LblMenuBatt, buf);
+	#endif
 }
 
 void Ui_Init_Custom(lv_event_t * e)

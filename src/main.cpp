@@ -699,7 +699,7 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
 
 void setup() 
 {
-    delay(2000);
+    //delay(2000);
     Serial.begin(115200);
     scr_lvgl_init();
 

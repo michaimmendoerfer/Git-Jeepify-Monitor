@@ -45,6 +45,7 @@ void ui_event_BtnMenu3(lv_event_t * e);
 extern lv_obj_t * ui_BtnMenu3;
 void ui_event_BtnMenu4(lv_event_t * e);
 extern lv_obj_t * ui_BtnMenu4;
+extern lv_obj_t * ui_LblMenuBatt;
 // CUSTOM VARIABLES
 
 // SCREEN: ui_ScrSettings

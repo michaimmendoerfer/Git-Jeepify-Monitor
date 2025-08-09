@@ -83,6 +83,10 @@ void scr_lvgl_init()
 
     lv_init();
 
+    #ifdef BATTERY_PORT
+        pinMode(BATTERY_PORT, INPUT);
+    #endif
+
     #if LV_USE_LOG != 0
     lv_log_register_print_cb(my_print); /* register print function for debugging */
     #endif
