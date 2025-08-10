@@ -137,8 +137,8 @@ void ui_ScrMenu_screen_init(void)
     ui_LblMenuBatt = lv_label_create(ui_ScrMenu);
     lv_obj_set_width(ui_LblMenuBatt, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LblMenuBatt, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_LblMenuBatt, lv_pct(-40));
-    lv_obj_set_y(ui_LblMenuBatt, lv_pct(7));
+    lv_obj_set_x(ui_LblMenuBatt, lv_pct(-20));
+    lv_obj_set_y(ui_LblMenuBatt, lv_pct(37));
     lv_obj_set_align(ui_LblMenuBatt, LV_ALIGN_CENTER);
     lv_label_set_text(ui_LblMenuBatt, "100%");
     lv_obj_set_style_text_color(ui_LblMenuBatt, lv_color_hex(0xAD0808), LV_PART_MAIN | LV_STATE_DEFAULT);

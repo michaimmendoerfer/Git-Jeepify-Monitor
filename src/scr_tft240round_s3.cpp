@@ -100,21 +100,17 @@ void scr_lvgl_init()
         bufSize = screenWidth * 40;
     #endif
 
-    #ifdef ESP32
-        #if defined(DIRECT_MODE) && (defined(CANVAS) || defined(RGB_PANEL))
+    #if defined(DIRECT_MODE) && (defined(CANVAS) || defined(RGB_PANEL))
         disp_draw_buf = (lv_color_t *)gfx->getFramebuffer();
-        #else  // !(defined(DIRECT_MODE) && (defined(CANVAS) || defined(RGB_PANEL)))
-            disp_draw_buf = (lv_color_t *)heap_caps_malloc(bufSize * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-            if (!disp_draw_buf)
-            {
-                // remove MALLOC_CAP_INTERNAL flag try again
-                disp_draw_buf = (lv_color_t *)heap_caps_malloc(bufSize * 2, MALLOC_CAP_8BIT);
-            }
-        #endif // !(defined(DIRECT_MODE) && (defined(CANVAS) || defined(RGB_PANEL)))
-    #else // !ESP32
-        Serial.println("LVGL disp_draw_buf heap_caps_malloc failed! malloc again...");
-        disp_draw_buf = (lv_color_t *)malloc(bufSize * 2);
-    #endif // !ESP32
+    #else  // !(defined(DIRECT_MODE) && (defined(CANVAS) || defined(RGB_PANEL)))
+        disp_draw_buf = (lv_color_t *)heap_caps_malloc(bufSize * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!disp_draw_buf)
+        {
+            // remove MALLOC_CAP_INTERNAL flag try again
+            disp_draw_buf = (lv_color_t *)heap_caps_malloc(bufSize * 2, MALLOC_CAP_8BIT);
+        }
+    #endif // !(defined(DIRECT_MODE) && (defined(CANVAS) || defined(RGB_PANEL)))
+
     if (!disp_draw_buf)
     {
         Serial.println("LVGL disp_draw_buf allocate failed!");
@@ -122,10 +118,8 @@ void scr_lvgl_init()
     else
     {
         lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, NULL, bufSize);
-
-        /* Initialize the display */
         lv_disp_drv_init(&disp_drv);
-        /* Change the following line to your display resolution */
+        
         disp_drv.hor_res = screenWidth;
         disp_drv.ver_res = screenHeight;
         disp_drv.flush_cb = my_disp_flush;
