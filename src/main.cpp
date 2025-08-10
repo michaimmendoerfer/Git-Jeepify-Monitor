@@ -17,7 +17,7 @@
 
 const char *T[MAX_PERIPHERALS] =           {"T0",   "T1",   "T2",   "T3",   "T4",   "T5",   "T6",   "T7",   "T8"  };
 const char *N[MAX_PERIPHERALS] =           {"N0",   "N1",   "N2",   "N3",   "N4",   "N5",   "N6",   "N7",   "N8"  };
-//const char *B[MAX_PERIPHERALS] =           {"Br0",  "Br1",  "Br2",  "Br3",  "Br4",  "B5r",  "B6r",  "B7r",  "B8r" };
+const char *B[MAX_PERIPHERALS] =           {"Br0",  "Br1",  "Br2",  "Br3",  "Br4",  "B5r",  "B6r",  "B7r",  "B8r" };
 const char *ArrNullwert[MAX_PERIPHERALS] = {"NW0",  "NW1",  "NW2",  "NW3",  "NW4",  "NW5",  "NW6",  "NW7",  "NW8" };
 const char *ArrVperAmp[MAX_PERIPHERALS] =  {"VpA0", "VpA1", "VpA2", "VpA3", "VpA4", "VpA5", "VpA6", "VpA7", "VpA8"};
 const char *ArrVin[MAX_PERIPHERALS] =      {"Vin0", "Vin1", "Vin2", "Vin3", "Vin4", "Vin5", "Vin6", "Vin7", "Vin8"};
@@ -466,8 +466,15 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
     }
     return true;
 }
-
-void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len)
+#ifdef MODULE_MONITOR_360 
+    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
+#endif
+#ifdef MODULE_MONITOR_240
+    void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
+#endif
+#ifdef MODULE_MONITOR_240_S3
+    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
+#endif
 {
     PeerClass *P;
     
@@ -533,7 +540,15 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int 
             
             if ((Module.GetDebugMode()) and (millis() - P->GetTSLastSeen() > OFFLINE_INTERVAL)) ShowMessageBox("Peer online", P->GetName(), 1000, 200);
             P->SetTSLastSeen(millis());
-            P->SetdBm(info->rx_ctrl->rssi); 
+            #ifdef MODULE_MONITOR_360 
+                P->SetdBm(info->rx_ctrl->rssi); 
+            #endif
+            #ifdef MODULE_MONITOR_240_S3
+                P->SetdBm(info->rx_ctrl->rssi); 
+            #endif
+            #ifdef MODULE_MONITOR_240
+                P->SetdBm(0); 
+            #endif
         }
 
         TSMsgRcv = millis();
@@ -600,7 +615,7 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int 
                         if (doc[ArrPeriph[Si]].is<JsonVariant>())
                         {
                             strcpy(buf, doc[ArrPeriph[Si]]);
-                            int   _PeriphType = atoi(strtok(buf, ";"));  //...................weg
+                            int   _PeriphType = atoi(strtok(buf, ";"));
                             char *_PeriphName = strtok(NULL, ";");
                             float _Value0     = atof(strtok(NULL, ";"));
                             float _Value1     = atof(strtok(NULL, ";"));
