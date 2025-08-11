@@ -9,15 +9,18 @@
 #ifdef MODULE_MONITOR_240
     #include "scr_tft240round.h"
 #endif
+#ifdef MODULE_MONITOR_240_C3
+    #include "scr_tft240round_c3.h"
+#endif
 #ifdef MODULE_MONITOR_240_S3
     #include "scr_tft240round_s3.h"
 #endif
 
 #pragma region Globals
 
-const char *T[MAX_PERIPHERALS] =           {"T0",   "T1",   "T2",   "T3",   "T4",   "T5",   "T6",   "T7",   "T8"  };
-const char *N[MAX_PERIPHERALS] =           {"N0",   "N1",   "N2",   "N3",   "N4",   "N5",   "N6",   "N7",   "N8"  };
-const char *B[MAX_PERIPHERALS] =           {"Br0",  "Br1",  "Br2",  "Br3",  "Br4",  "B5r",  "B6r",  "B7r",  "B8r" };
+//const char *T[MAX_PERIPHERALS] =           {"T0",   "T1",   "T2",   "T3",   "T4",   "T5",   "T6",   "T7",   "T8"  };
+//const char *N[MAX_PERIPHERALS] =           {"N0",   "N1",   "N2",   "N3",   "N4",   "N5",   "N6",   "N7",   "N8"  };
+//const char *B[MAX_PERIPHERALS] =           {"Br0",  "Br1",  "Br2",  "Br3",  "Br4",  "B5r",  "B6r",  "B7r",  "B8r" };
 const char *ArrNullwert[MAX_PERIPHERALS] = {"NW0",  "NW1",  "NW2",  "NW3",  "NW4",  "NW5",  "NW6",  "NW7",  "NW8" };
 const char *ArrVperAmp[MAX_PERIPHERALS] =  {"VpA0", "VpA1", "VpA2", "VpA3", "VpA4", "VpA5", "VpA6", "VpA7", "VpA8"};
 const char *ArrVin[MAX_PERIPHERALS] =      {"Vin0", "Vin1", "Vin2", "Vin3", "Vin4", "Vin5", "Vin6", "Vin7", "Vin8"};
@@ -458,19 +461,15 @@ void ToggleWebServer()
 #pragma endregion WebServer
 
 #pragma region Main
-bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
-{
-    for (int i=0; i<6; i++)
-    {
-        if (MAC1[i] != MAC2[i]) return false;
-    }
-    return true;
-}
+
 #ifdef MODULE_MONITOR_360 
     void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
 #endif
 #ifdef MODULE_MONITOR_240
     void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
+#endif
+#ifdef MODULE_MONITOR_240_C3
+    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
 #endif
 #ifdef MODULE_MONITOR_240_S3
     void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
@@ -540,14 +539,11 @@ bool MACequals( uint8_t *MAC1, uint8_t *MAC2)
             
             if ((Module.GetDebugMode()) and (millis() - P->GetTSLastSeen() > OFFLINE_INTERVAL)) ShowMessageBox("Peer online", P->GetName(), 1000, 200);
             P->SetTSLastSeen(millis());
-            #ifdef MODULE_MONITOR_360 
-                P->SetdBm(info->rx_ctrl->rssi); 
-            #endif
-            #ifdef MODULE_MONITOR_240_S3
-                P->SetdBm(info->rx_ctrl->rssi); 
-            #endif
+        
             #ifdef MODULE_MONITOR_240
                 P->SetdBm(0); 
+            #else
+                P->SetdBm(info->rx_ctrl->rssi); 
             #endif
         }
 
@@ -713,8 +709,7 @@ void setup()
     WiFi.begin();
     uint8_t MacTemp[6];
     WiFi.macAddress(MacTemp);
-    //Module.SetBroadcastAddress(MacTemp);
-
+    
     Module.Setup(NODE_NAME, NODE_TYPE, MODULE_VERSION, MacTemp, false, true, false, false);
     
     InitWebServer();
@@ -761,7 +756,6 @@ void GarbageMessages(lv_timer_t * timer)
         {
             ReceivedMessagesStruct *RMItem = ReceivedMessagesList.get(i);
             
-            //Serial.printf("%lu: TS:%lu\n\r", millis(), RMItem->TS);
             if (millis() > RMItem->SaveTime + SEND_CMD_MSG_HOLD*1000)
             {
                 DEBUG3 ("Message aus RMList entfernt\n\r");
@@ -1015,16 +1009,13 @@ void CalibVolt() {
     
     serializeJson(doc, jsondata);  
 
-    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 100, TSConfirm, true);  
-    Serial.println("zurück von JeepifySend-warte");
-    delay(1000);
-    Serial.println("zurück von JeepifySend");
+    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 250, TSConfirm, true);  
+    //delay(1000);
         
     DEBUG3 ("%s", jsondata.c_str());
 }
 void CalibAmp() 
 {
-    Serial.println("CalibAmp beginnt");
     JsonDocument doc; String jsondata;
 
     uint32_t TSConfirm = millis();
@@ -1040,7 +1031,7 @@ void CalibAmp()
     doc[SEND_CMD_JSON_CONFIRM]     = 1;
         
     serializeJson(doc, jsondata);  
-    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 200, TSConfirm, true);  
+    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 250, TSConfirm, true);  
 
     DEBUG3 ("%s", jsondata.c_str());
 }
@@ -1059,12 +1050,6 @@ void MacByteToChar(char *MAC, uint8_t *mac)
     sprintf(MAC, "%2.2X%2.2X%2.2X%2.2X%2.2X%2.2X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
-void GenerateMeessageID(PeerClass *P, char *ID)
-{
-    uint8_t *mac;
-    mac = Module.GetBroadcastAddress();
-    sprintf(ID, "%2.2X%2.2X%2.2X%2.2X%2.2X%2.2X;%lu", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], millis());
-}
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) 
 { 
     if (status == ESP_NOW_SEND_SUCCESS)

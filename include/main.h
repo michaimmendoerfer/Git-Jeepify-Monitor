@@ -38,9 +38,9 @@ void   OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
 #ifdef MODULE_MONITOR_240
     void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
 #endif
-
-//void my_disp_flush( lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p );
-//void my_touchpad_read( lv_indev_drv_t * indev_driver, lv_indev_data_t * data );
+#ifdef MODULE_MONITOR_240_C3
+    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len);
+#endif
 
 void   SendPing(lv_timer_t * timer);
 bool   ToggleSwitch(PeerClass *P, int PerNr);
