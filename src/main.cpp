@@ -18,9 +18,6 @@
 
 #pragma region Globals
 
-//const char *T[MAX_PERIPHERALS] =           {"T0",   "T1",   "T2",   "T3",   "T4",   "T5",   "T6",   "T7",   "T8"  };
-//const char *N[MAX_PERIPHERALS] =           {"N0",   "N1",   "N2",   "N3",   "N4",   "N5",   "N6",   "N7",   "N8"  };
-//const char *B[MAX_PERIPHERALS] =           {"Br0",  "Br1",  "Br2",  "Br3",  "Br4",  "B5r",  "B6r",  "B7r",  "B8r" };
 const char *ArrNullwert[MAX_PERIPHERALS] = {"NW0",  "NW1",  "NW2",  "NW3",  "NW4",  "NW5",  "NW6",  "NW7",  "NW8" };
 const char *ArrVperAmp[MAX_PERIPHERALS] =  {"VpA0", "VpA1", "VpA2", "VpA3", "VpA4", "VpA5", "VpA6", "VpA7", "VpA8"};
 const char *ArrVin[MAX_PERIPHERALS] =      {"Vin0", "Vin1", "Vin2", "Vin3", "Vin4", "Vin5", "Vin6", "Vin7", "Vin8"};
@@ -573,7 +570,7 @@ void ToggleWebServer()
                     {
                         DEBUG3 ("Check Pairing for: %s\n\r", ArrPeriph[Si]);
                         
-                        if (doc[ArrPeriph[Si]].is<JsonVariant>())
+                        if (doc[ArrPeriph[Si]].is<JsonVariant>()) // vielleicht String (Per+Si)
                         {
                             strcpy(buf, doc[ArrPeriph[Si]]);
                             int   _PeriphType = atoi(strtok(buf, ";"));
@@ -657,7 +654,7 @@ void ToggleWebServer()
                 break;
     
             case SEND_CMD_CONFIRM:
-                if ((P) and (doc[SEND_CMD_JSON_CONFIRM].is<JsonVariant>()))
+                if (P) // and (doc[SEND_CMD_JSON_CONFIRM].is<JsonVariant>()))
                 {                    
                     DEBUG2 ("Confirm (%lu) empfangen von %s\n\r", _TS, P->GetName());
                     for (int i=0; i<ConfirmList.size(); i++)
@@ -765,25 +762,54 @@ void GarbageMessages(lv_timer_t * timer)
         }
     }
 }
-esp_err_t  JeepifySend(PeerClass *P, const uint8_t *data, size_t len, uint32_t TSConfirm, bool ConfirmNeeded = false)
+esp_err_t  JeepifySend(const uint8_t *peer, const uint8_t *data, size_t len, bool ConfirmNeeded = false)
 {
-    esp_err_t SendStatus = esp_now_send(broadcastAddressAll, data, len);
-    
-    DEBUG3 ("SendStatus was %d, ConfirmNeeded = %d\n\r", SendStatus, ConfirmNeeded);
-    if (ConfirmNeeded)
-    {   
-        ConfirmStruct *Confirm = new ConfirmStruct;
-        memcpy(Confirm->Address, P->GetBroadcastAddress(), 6);
-        strcpy(Confirm->Message, (const char *)data);
-        Confirm->Confirmed = false;
-        Confirm->TSMessage = TSConfirm;
-        Confirm->Try = 1;
-
-        ConfirmList.add(Confirm);
-
-        DEBUG2 ("added Msg: %s to ConfirmList\n\r", Confirm->Message, Confirm->Try);   
+    if (!ConfirmNeeded)
+    {
+        esp_err_t SendStatus = esp_now_send(broadcastAddressAll, data, 250);
+        return SendStatus;
     }
-    return SendStatus;
+    else
+    {
+        JsonDocument doc;
+        
+        char* buff = (char*) data;   
+        String jsondata = String(buff); 
+        
+        DeserializationError error = deserializeJson(doc, jsondata);
+
+        if (!error) // erfolgreich JSON
+        {
+            doc[SEND_CMD_JSON_CONFIRM] = 1;
+        
+            serializeJson(doc, jsondata);  
+            
+            esp_err_t SendStatus = esp_now_send(broadcastAddressAll, (uint8_t *)jsondata.c_str(), 250);
+            
+            DEBUG3 ("SendStatus was %d, ConfirmNeeded = %d\n\r", SendStatus, ConfirmNeeded);
+            uint8_t _To[6];
+            const char *MacToS = doc[SEND_CMD_JSON_TO];
+            MacCharToByte(_To, (char *) MacToS);
+
+            ConfirmStruct *Confirm = new ConfirmStruct;
+            memcpy(Confirm->Address, _To, 6);
+            strcpy(Confirm->Message, (const char *)data);
+            Confirm->Confirmed = false;
+            Confirm->TSMessage = doc[SEND_CMD_JSON_TS];
+            Confirm->Try = 1;
+
+            ConfirmList.add(Confirm);
+
+            DEBUG2 ("added Msg: %s to ConfirmList\n\r", Confirm->Message, Confirm->Try);   
+    
+            return SendStatus;
+        }
+        else
+        {   
+            DEBUG1 ("JSON-error while adding doc[SEND_CMD_JSON_CONFIRM]\n\r");
+            return -1;
+        }
+    }
 }
 void SendPing(lv_timer_t * timer) {
     JsonDocument doc; String jsondata;
@@ -992,8 +1018,6 @@ bool TogglePairMode() {
 }
 void CalibVolt() {
     JsonDocument doc; String jsondata;
-    
-    uint32_t TSConfirm = millis();
 
     char mac[13];
 
@@ -1001,15 +1025,15 @@ void CalibVolt() {
     doc[SEND_CMD_JSON_FROM]        = mac;
     MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TO]          = mac;
-    doc[SEND_CMD_JSON_TS]          = TSConfirm;
+    doc[SEND_CMD_JSON_TS]          = millis();
     doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_VOLTAGE_CALIB;
     doc[SEND_CMD_JSON_VALUE]       = lv_textarea_get_text(ui_TxtVolt);
     doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
-    doc[SEND_CMD_JSON_CONFIRM]     = 1;
+    //doc[SEND_CMD_JSON_CONFIRM]     = 1;
     
     serializeJson(doc, jsondata);  
 
-    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 250, TSConfirm, true);  
+    JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
     //delay(1000);
         
     DEBUG3 ("%s", jsondata.c_str());
@@ -1018,20 +1042,19 @@ void CalibAmp()
 {
     JsonDocument doc; String jsondata;
 
-    uint32_t TSConfirm = millis();
     char mac[13];
 
     MacByteToChar(mac, Module.GetBroadcastAddress());
     doc[SEND_CMD_JSON_FROM]        = mac;
     MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TO]          = mac;
-    doc[SEND_CMD_JSON_TS]          = TSConfirm;
+    doc[SEND_CMD_JSON_TS]          = millis();
     doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_CURRENT_CALIB;
     doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
     doc[SEND_CMD_JSON_CONFIRM]     = 1;
         
     serializeJson(doc, jsondata);  
-    JeepifySend(ActivePeer, (uint8_t *) jsondata.c_str(), 250, TSConfirm, true);  
+    JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
 
     DEBUG3 ("%s", jsondata.c_str());
 }

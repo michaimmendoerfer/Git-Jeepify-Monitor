@@ -64,6 +64,8 @@ void   GarbageMessages(lv_timer_t * timer);
 
 void   InitWebServer();
 
+esp_err_t  JeepifySend(const uint8_t *peer, const uint8_t *data, size_t len, bool ConfirmNeeded);
+
 extern volatile uint32_t TSMsgRcv;
 extern volatile uint32_t TSMsgSnd;
 extern volatile uint32_t TSPair;
