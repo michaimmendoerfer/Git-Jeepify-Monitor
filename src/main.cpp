@@ -1,7 +1,6 @@
 #define DEBUG_LEVEL 3
 //#define KILL_NVS 
 
-
 #include "main.h"
 #ifdef MODULE_MONITOR_360 
     #include "scr_st77916.h"

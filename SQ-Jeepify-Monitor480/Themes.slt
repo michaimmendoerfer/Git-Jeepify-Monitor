@@ -1,0 +1,139 @@
+{
+  "deftheme": {
+    "name": "Default",
+    "properties": [
+      {
+        "nid": -810756081,
+        "strtype": "THEME_COLOR",
+        "strval": "BtnTxt",
+        "intarray": [
+          219,
+          219,
+          219,
+          255
+        ],
+        "InheritedType": 0
+      },
+      {
+        "nid": -1084274022,
+        "strtype": "THEME_COLOR",
+        "strval": "BtnBg",
+        "intarray": [
+          173,
+          8,
+          8,
+          255
+        ],
+        "InheritedType": 0
+      },
+      {
+        "nid": -1611543068,
+        "strtype": "THEME_COLOR",
+        "strval": "BtnBorder",
+        "intarray": [
+          219,
+          219,
+          219,
+          255
+        ],
+        "InheritedType": 0
+      },
+      {
+        "nid": -240239209,
+        "strtype": "THEME_COLOR",
+        "strval": "BtnSelected",
+        "intarray": [
+          116,
+          3,
+          3,
+          255
+        ],
+        "InheritedType": 0
+      },
+      {
+        "nid": 1691625628,
+        "strtype": "THEME_COLOR",
+        "strval": "BtnTxtInaktive",
+        "intarray": [
+          0,
+          0,
+          0,
+          255
+        ],
+        "InheritedType": 0
+      }
+    ]
+  },
+  "themes": [
+    {
+      "name": "ThemeGrey2",
+      "properties": [
+        {
+          "nid": -810756081,
+          "strtype": "THEME_COLOR",
+          "strval": "BtnTxt",
+          "intarray": [
+            51,
+            51,
+            51,
+            200
+          ],
+          "InheritedType": 0
+        },
+        {
+          "nid": -1084274022,
+          "flags": 2097152,
+          "strtype": "THEME_COLOR",
+          "strval": "BtnBg",
+          "intarray": [
+            173,
+            8,
+            8,
+            255
+          ],
+          "InheritedType": 0
+        },
+        {
+          "nid": -1611543068,
+          "flags": 2097152,
+          "strtype": "THEME_COLOR",
+          "strval": "BtnBorder",
+          "intarray": [
+            219,
+            219,
+            219,
+            255
+          ],
+          "InheritedType": 0
+        },
+        {
+          "nid": -240239209,
+          "flags": 2097152,
+          "strtype": "THEME_COLOR",
+          "strval": "BtnSelected",
+          "intarray": [
+            116,
+            3,
+            3,
+            255
+          ],
+          "InheritedType": 0
+        },
+        {
+          "nid": 1691625628,
+          "flags": 2097152,
+          "strtype": "THEME_COLOR",
+          "strval": "BtnTxtInaktive",
+          "intarray": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "InheritedType": 0
+        }
+      ]
+    }
+  ],
+  "selected_theme": "Default"
+}

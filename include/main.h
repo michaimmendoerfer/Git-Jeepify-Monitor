@@ -21,6 +21,7 @@
 #define DEBUG1(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 0)) Serial.printf(__VA_ARGS__)
 #define DEBUG2(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 1)) Serial.printf(__VA_ARGS__)
 #define DEBUG3(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 2)) Serial.printf(__VA_ARGS__)
+#define JX(...) (doc[__VA_ARGS__].is<JsonVariant>())
 
 #define RECORDED_VALUES 10
 struct struct_Graph {

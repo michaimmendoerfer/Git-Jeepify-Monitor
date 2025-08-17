@@ -3,13 +3,13 @@
 
 #include <Jeepify.h>
 
-//#define MODULE_MONITOR_360
+#define MODULE_MONITOR_360
 //#define MODULE_MONITOR_240
-#define MODULE_MONITOR_240_C3
+//#define MODULE_MONITOR_240_C3
 //#define MODULE_MONITOR_240_S3
 
-#define MODULE_VERSION          "4.10"  
-#define PROTOKOLL_VERSION       "3.01"
+#define MODULE_VERSION          "4.11"  
+#define PROTOKOLL_VERSION       "3.10"
 
 #ifdef MODULE_MONITOR_360
     #define NODE_NAME "Monitor 360"
@@ -41,7 +41,7 @@
 #endif
 
 #ifdef MODULE_MONITOR_240_C3
-    #define NODE_NAME       "M240_C3"
+    #define NODE_NAME       "MM1"
     #define NODE_TYPE       MONITOR_ROUND
     #define SCREEN_RES_HOR  240
     #define SCREEN_RES_VER  240
