@@ -1,5 +1,5 @@
-#ifndef SCR_TFT240ROUND_S3_H
-#define SCR_TFT240ROUND_S3_H
+#ifndef SCR_TFT240ROUND_C3_H
+#define SCR_TFT240ROUND_C3_H
 
 #include <Arduino.h>
 #include "CST816D.h"

@@ -1,6 +1,7 @@
 {
     "files.associations": {
-        "compbutton.h": "c"
+        "compbutton.h": "c",
+        "esp32_smartdisplay.h": "c"
     },
     "cmake.sourceDirectory": "C:/Users/micha/Documents/PlatformIO/Projekte/Git-Jeepify-Monitor/src/Ui_240"
 }

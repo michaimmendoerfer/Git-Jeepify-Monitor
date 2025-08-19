@@ -2,6 +2,10 @@
 //#define KILL_NVS 
 
 #include "main.h"
+
+#ifdef MODULE_MONITOR_480 
+    #include "scr_tft480.h"
+#endif
 #ifdef MODULE_MONITOR_360 
     #include "scr_st77916.h"
 #endif
@@ -458,16 +462,9 @@ void ToggleWebServer()
 
 #pragma region Main
 
-#ifdef MODULE_MONITOR_360 
-    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
-#endif
 #ifdef MODULE_MONITOR_240
     void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
-#endif
-#ifdef MODULE_MONITOR_240_C3
-    void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
-#endif
-#ifdef MODULE_MONITOR_240_S3
+#else
     void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
 #endif
 {
@@ -733,12 +730,23 @@ void setup()
     lv_timer_t * TimerPing    = lv_timer_create(SendPing, PING_INTERVAL,  &user_data);
     lv_timer_t * TimerGarbage = lv_timer_create(GarbageMessages, PING_INTERVAL,  &user_data);
 
+    #ifdef MON_HAS_PERIPH
+        lv_timer_t * TimerPeriph = lv_timer_create(SendStatus, PING_INTERVAL,  &user_data);
+    #endif
+
     ui_init();
 }
 void loop() 
 {
-  lv_timer_handler(); 
-  delay(10);
+    #ifdef LVGL9
+        static auto lv_last_tick = millis();
+        auto const  now = millis();
+        lv_tick_inc(now - lv_last_tick);
+        lv_last_tick = now;
+    #endif
+
+    lv_timer_handler(); 
+    delay(5);
 }
 #pragma endregion Main
 
@@ -899,6 +907,10 @@ void SendPairingConfirm(PeerClass *P) {
     esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250); 
     DEBUG2 ("Sent you are paired\n\r%s\n\r", jsondata.c_str());  
      
+}
+void SendStatus()
+{
+
 }
 bool ToggleSwitch(PeerClass *P, int PerNr)
 {

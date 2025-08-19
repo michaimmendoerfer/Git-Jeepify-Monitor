@@ -3,7 +3,8 @@
 
 #include <Jeepify.h>
 
-#define MODULE_MONITOR_360
+//#define MODULE_MONITOR_360
+#define MODULE_MONITOR_480
 //#define MODULE_MONITOR_240
 //#define MODULE_MONITOR_240_C3
 //#define MODULE_MONITOR_240_S3
@@ -18,6 +19,16 @@
     #define SCREEN_RES_VER 360
     #define UI_H_DIR        "Ui_360/ui.h"
     #define UI_EVENTS_H_DIR "Ui_360/ui_events.h" 
+#endif
+
+#ifdef MODULE_MONITOR_480
+    #define NODE_NAME "Monitor 480"
+    #define NODE_TYPE MONITOR_BIG
+    #define SCREEN_RES_HOR 480
+    #define SCREEN_RES_VER 320
+    #define UI_H_DIR        "Ui_480/ui.h"
+    #define UI_EVENTS_H_DIR "Ui_480/ui_events.h" 
+    //#define LVGL9          1
 #endif
 
 #ifdef MODULE_MONITOR_240

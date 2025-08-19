@@ -48,6 +48,7 @@ bool   ToggleSwitch(PeerClass *P, int PerNr);
 bool   ToggleSwitch(PeriphClass *Periph);
 void   SendCommand(PeerClass *P, int Cmd, String Value="");
 void   SendPairingConfirm(PeerClass *Peer);
+void   SendStatus();
 
 void   ShowMessageBox(const char * Titel, const char *Txt, int delay, int opa=255);
 
