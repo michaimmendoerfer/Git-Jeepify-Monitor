@@ -462,10 +462,10 @@ void ToggleWebServer()
 
 #pragma region Main
 
-#ifdef MODULE_MONITOR_240
-    void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
-#else
+#ifndef MODULE_MONITOR_240
     void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len) 
+#else
+    void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len)
 #endif
 {
     PeerClass *P;
@@ -746,7 +746,7 @@ void loop()
     #endif
 
     lv_timer_handler(); 
-    delay(5);
+    //delay(5);
 }
 #pragma endregion Main
 

@@ -28,7 +28,7 @@
     #define SCREEN_RES_VER 320
     #define UI_H_DIR        "Ui_480/ui.h"
     #define UI_EVENTS_H_DIR "Ui_480/ui_events.h" 
-    //#define LVGL9          1
+    #define CYD_LED        1
 #endif
 
 #ifdef MODULE_MONITOR_240

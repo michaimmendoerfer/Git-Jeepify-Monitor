@@ -37,7 +37,7 @@ void ui_event_BtnMenu3(lv_event_t * e)
     lv_event_code_t event_code = lv_event_get_code(e);
 
     if(event_code == LV_EVENT_CLICKED) {
-        _ui_screen_change(&ui_ScrMulti, LV_SCR_LOAD_ANIM_FADE_ON, 50, 0, &ui_ScrMulti_screen_init);
+        _ui_screen_change(&ui_ScrMulti, LV_SCR_LOAD_ANIM_NONE, 50, 0, &ui_ScrMulti_screen_init);
     }
 }
 
@@ -46,7 +46,7 @@ void ui_event_BtnMenu4(lv_event_t * e)
     lv_event_code_t event_code = lv_event_get_code(e);
 
     if(event_code == LV_EVENT_CLICKED) {
-        _ui_screen_change(&ui_ScrSettings, LV_SCR_LOAD_ANIM_FADE_ON, 50, 0, &ui_ScrSettings_screen_init);
+        _ui_screen_change(&ui_ScrSettings, LV_SCR_LOAD_ANIM_NONE, 50, 0, &ui_ScrSettings_screen_init);
     }
 }
 

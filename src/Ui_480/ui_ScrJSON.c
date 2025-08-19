@@ -17,7 +17,7 @@ void ui_event_ScrJSON(lv_event_t * e)
     }
     if(event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_TOP) {
         lv_indev_wait_release(lv_indev_get_act());
-        _ui_screen_change(&ui_ScrSettings, LV_SCR_LOAD_ANIM_MOVE_TOP, 500, 0, &ui_ScrSettings_screen_init);
+        _ui_screen_change(&ui_ScrSettings, LV_SCR_LOAD_ANIM_MOVE_TOP, 50, 0, &ui_ScrSettings_screen_init);
     }
 }
 
@@ -34,7 +34,9 @@ void ui_ScrJSON_screen_init(void)
 
     ui_TxtJSON1 = lv_textarea_create(ui_ScrJSON);
     lv_obj_set_width(ui_TxtJSON1, lv_pct(80));
-    lv_obj_set_height(ui_TxtJSON1, lv_pct(80));
+    lv_obj_set_height(ui_TxtJSON1, lv_pct(70));
+    lv_obj_set_x(ui_TxtJSON1, lv_pct(0));
+    lv_obj_set_y(ui_TxtJSON1, lv_pct(-6));
     lv_obj_set_align(ui_TxtJSON1, LV_ALIGN_CENTER);
     lv_textarea_set_placeholder_text(ui_TxtJSON1, "JSON-Message");
     lv_obj_set_style_text_color(ui_TxtJSON1, lv_color_hex(0xDBDBDB), LV_PART_MAIN | LV_STATE_DEFAULT);

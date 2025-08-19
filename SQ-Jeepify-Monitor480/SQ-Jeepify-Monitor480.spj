@@ -1218,7 +1218,7 @@
                           {
                             "nid": -986305368,
                             "strtype": "CHANGE SCREEN/Fade_mode",
-                            "strval": "FADE_ON",
+                            "strval": "NONE",
                             "InheritedType": 3
                           },
                           {
@@ -1510,7 +1510,7 @@
                           {
                             "nid": 911717771,
                             "strtype": "CHANGE SCREEN/Fade_mode",
-                            "strval": "FADE_ON",
+                            "strval": "NONE",
                             "InheritedType": 3
                           },
                           {
@@ -5579,13 +5579,13 @@
                   {
                     "nid": -978884575,
                     "strtype": "CHANGE SCREEN/Fade_mode",
-                    "strval": "MOVE_TOP",
+                    "strval": "NONE",
                     "InheritedType": 3
                   },
                   {
                     "nid": -403653102,
                     "strtype": "CHANGE SCREEN/Speed",
-                    "integer": 500,
+                    "integer": 50,
                     "InheritedType": 6
                   },
                   {
@@ -6810,7 +6810,7 @@
                 "strtype": "OBJECT/Position",
                 "intarray": [
                   0,
-                  0
+                  -6
                 ],
                 "InheritedType": 7
               },
@@ -6820,7 +6820,7 @@
                 "strtype": "OBJECT/Size",
                 "intarray": [
                   80,
-                  80
+                  70
                 ],
                 "InheritedType": 7
               },
@@ -7266,7 +7266,7 @@
                   {
                     "nid": -1953412982,
                     "strtype": "CHANGE SCREEN/Speed",
-                    "integer": 500,
+                    "integer": 50,
                     "InheritedType": 6
                   },
                   {
@@ -17758,7 +17758,7 @@
                   {
                     "nid": -433770463,
                     "strtype": "CHANGE SCREEN/Fade_mode",
-                    "strval": "FADE_ON",
+                    "strval": "MOVE_TOP",
                     "InheritedType": 3
                   },
                   {
@@ -19255,7 +19255,7 @@
     "uiExportFolderPath": "C:\\Users\\micha\\Documents\\PlatformIO\\Projekte\\Git-Jeepify-Monitor\\src\\Ui_480",
     "projectExportFolderPath": "",
     "custom_variable_prefix": "uic",
-    "backup_cnt": 978,
+    "backup_cnt": 996,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "lvgl_version": "8.3.6",
