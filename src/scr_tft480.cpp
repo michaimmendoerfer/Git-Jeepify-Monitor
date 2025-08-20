@@ -4,8 +4,6 @@
 #include "Jeepify.h"
 #include <lvgl.h>
 #include <Module.h>
-#include <esp32_smartdisplay.h>
-
 
 void scr_lvgl_init()
 {

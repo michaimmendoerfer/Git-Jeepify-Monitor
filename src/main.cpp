@@ -728,6 +728,7 @@ void setup()
   
     static uint32_t user_data = 10;
     lv_timer_t * TimerPing    = lv_timer_create(SendPing, PING_INTERVAL,  &user_data);
+    //lv_timer_t * TimerStatus  = lv_timer_create(SendStatus, PING_INTERVAL,  &user_data);
     lv_timer_t * TimerGarbage = lv_timer_create(GarbageMessages, PING_INTERVAL,  &user_data);
 
     #ifdef MON_HAS_PERIPH
@@ -974,6 +975,58 @@ void PrepareJSON() {
       jsondataBuf = "";
     }
   }
+}
+void TopUpdateTimer(lv_timer_t * timer)
+{
+	if ((TSPair)  and (millis() - TSPair < PAIR_INTERVAL)){
+		lv_led_on(Ui_LedPair);
+        #ifdef CYD_LED
+            smartdisplay_led_set_rgb(255, 0, 0);
+        #endif
+	}
+	else {
+		lv_led_off(Ui_LedPair);
+        #ifdef CYD_LED
+            smartdisplay_led_set_rgb(0, 0, 0);
+        #endif
+		TSPair = 0;
+		Module.SetPairMode(false);
+	}
+    
+    if ((TSMsgSnd) and (millis() - TSMsgSnd < MSGLIGHT_INTERVAL)) {
+		lv_led_on(Ui_LedSnd);
+        #ifdef CYD_LED
+            smartdisplay_led_set_rgb(0, 0, 255);
+        #endif
+	}
+	else {
+		lv_led_off(Ui_LedSnd);
+        #ifdef CYD_LED
+            if (TSPair) smartdisplay_led_set_rgb(255, 0, 0);
+            else smartdisplay_led_set_rgb(0, 0, 0);
+        #endif
+		TSMsgSnd = 0;
+
+	}
+
+	if ((TSMsgRcv) and (millis() - TSMsgRcv < MSGLIGHT_INTERVAL)) {
+		lv_led_on(Ui_LedRcv);
+        #ifdef CYD_LED
+            smartdisplay_led_set_rgb(0, 255, 0);
+        #endif
+	}
+	else {
+		lv_led_off(Ui_LedRcv);
+        #ifdef CYD_LED
+            if (TSPair) smartdisplay_led_set_rgb(255, 0, 0);
+            else smartdisplay_led_set_rgb(0, 0, 0);
+        #endif
+		TSMsgRcv = 0;
+	}
+
+	#ifdef BATTERY_PORT
+		lv_label_set_text_fmt(ui_LblMenuBatt, "%.2f", analogRead(BATTERY_PORT*BATTERY_DEVIDER));
+	#endif
 }
 #pragma endregion System-Screens
 #pragma region Other

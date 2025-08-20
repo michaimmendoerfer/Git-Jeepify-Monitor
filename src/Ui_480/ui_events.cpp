@@ -471,37 +471,6 @@ void Ui_Periph_Choice_Loaded(lv_event_t * e)
 }
 #pragma endregion Screen_PeriphChoice
 #pragma region System_TimerAndInit
-void TopUpdateTimer(lv_timer_t * timer)
-{
-	if ((TSMsgSnd) and (millis() - TSMsgSnd < MSGLIGHT_INTERVAL)) {
-		lv_led_on(Ui_LedSnd);
-	}
-	else {
-		lv_led_off(Ui_LedSnd);
-		TSMsgSnd = 0;
-
-	}
-
-	if ((TSMsgRcv) and (millis() - TSMsgRcv < MSGLIGHT_INTERVAL)) {
-		lv_led_on(Ui_LedRcv);
-	}
-	else {
-		lv_led_off(Ui_LedRcv);
-		TSMsgRcv = 0;
-	}
-
-	if ((TSPair)  and (millis() - TSPair < PAIR_INTERVAL)){
-		lv_led_on(Ui_LedPair);
-	}
-	else {
-		lv_led_off(Ui_LedPair);
-		TSPair = 0;
-		Module.SetPairMode(false);
-	}
-	#ifdef BATTERY_PORT
-		lv_label_set_text_fmt(ui_LblMenuBatt, "%.2f", analogRead(BATTERY_PORT*BATTERY_DEVIDER));
-	#endif
-}
 
 void Ui_Init_Custom(lv_event_t * e)
 {

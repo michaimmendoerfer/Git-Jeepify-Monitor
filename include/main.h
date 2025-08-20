@@ -51,6 +51,7 @@ void   SendPairingConfirm(PeerClass *Peer);
 void   SendStatus();
 
 void   ShowMessageBox(const char * Titel, const char *Txt, int delay, int opa=255);
+void   TopUpdateTimer(lv_timer_t * timer);
 
 bool   ToggleSleepMode();
 bool   ToggleDebugMode();
@@ -71,6 +72,10 @@ esp_err_t  JeepifySend(const uint8_t *peer, const uint8_t *data, size_t len, boo
 extern volatile uint32_t TSMsgRcv;
 extern volatile uint32_t TSMsgSnd;
 extern volatile uint32_t TSPair;
+
+extern lv_obj_t *Ui_LedSnd;
+extern lv_obj_t *Ui_LedRcv;
+extern lv_obj_t *Ui_LedPair;
 
 extern PeerClass Module;
 
