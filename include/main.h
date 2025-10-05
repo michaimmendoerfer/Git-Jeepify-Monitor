@@ -62,7 +62,7 @@ void   CalibAmp();
 void   PrepareJSON();
 void   PrintMAC(const uint8_t * mac_addr);
 void   MacCharToByte(uint8_t *mac, char *MAC);
-void   MacByteToChar(char *MAC, uint8_t *mac);
+char  *MacByteToChar(char *MAC, uint8_t *mac);
 void   GarbageMessages(lv_timer_t * timer);
 
 void   InitWebServer();

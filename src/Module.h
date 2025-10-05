@@ -13,6 +13,7 @@
 #define PROTOKOLL_VERSION       "3.10"
 
 #ifdef MODULE_MONITOR_360
+    #include "scr_st77916.h"
     #define NODE_NAME "Monitor 360"
     #define NODE_TYPE MONITOR_ROUND
     #define SCREEN_RES_HOR 360
@@ -22,6 +23,7 @@
 #endif
 
 #ifdef MODULE_MONITOR_480
+    #include "scr_tft480.h"
     #define NODE_NAME "Monitor 480"
     #define NODE_TYPE MONITOR_BIG
     #define SCREEN_RES_HOR 480
@@ -32,6 +34,7 @@
 #endif
 
 #ifdef MODULE_MONITOR_240
+    #include "scr_tft240round.h"
     #define NODE_NAME "Monitor 240"
     #define NODE_TYPE MONITOR_ROUND
     #define SCREEN_RES_HOR 240
@@ -41,6 +44,7 @@
 #endif
 
 #ifdef MODULE_MONITOR_240_S3
+    #include "scr_tft240round_s3.h"
     #define NODE_NAME       "M240_S3"
     #define NODE_TYPE       MONITOR_ROUND
     #define BATTERY_PORT    1
@@ -52,6 +56,7 @@
 #endif
 
 #ifdef MODULE_MONITOR_240_C3
+    #include "scr_tft240round_c3.h"
     #define NODE_NAME       "MM1"
     #define NODE_TYPE       MONITOR_ROUND
     #define SCREEN_RES_HOR  240

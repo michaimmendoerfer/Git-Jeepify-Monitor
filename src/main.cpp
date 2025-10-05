@@ -3,22 +3,6 @@
 
 #include "main.h"
 
-#ifdef MODULE_MONITOR_480 
-    #include "scr_tft480.h"
-#endif
-#ifdef MODULE_MONITOR_360 
-    #include "scr_st77916.h"
-#endif
-#ifdef MODULE_MONITOR_240
-    #include "scr_tft240round.h"
-#endif
-#ifdef MODULE_MONITOR_240_C3
-    #include "scr_tft240round_c3.h"
-#endif
-#ifdef MODULE_MONITOR_240_S3
-    #include "scr_tft240round_s3.h"
-#endif
-
 #pragma region Globals
 
 const char *ArrNullwert[MAX_PERIPHERALS] = {"NW0",  "NW1",  "NW2",  "NW3",  "NW4",  "NW5",  "NW6",  "NW7",  "NW8" };
@@ -1132,9 +1116,10 @@ void MacCharToByte(uint8_t *mac, char *MAC)
 {
     sscanf(MAC, "%2x%2x%2x%2x%2x%2x", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
 }
-void MacByteToChar(char *MAC, uint8_t *mac)
+char *MacByteToChar(char *MAC, uint8_t *mac)
 {
     sprintf(MAC, "%2.2X%2.2X%2.2X%2.2X%2.2X%2.2X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return MAC;
 }
 
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) 
