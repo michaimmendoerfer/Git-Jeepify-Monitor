@@ -137,7 +137,6 @@ String processor(const String& var)
     
     return String();
 }
-
 bool SendWebPeriphNameChange()
 {
     JsonDocument doc; String jsondata; 
