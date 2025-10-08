@@ -2,7 +2,7 @@
 //#define KILL_NVS 
 
 #include "main.h"
-
+#include "scr_st77916.h"
 #pragma region Globals
 
 const char *ArrNullwert[MAX_PERIPHERALS] = {"NW0",  "NW1",  "NW2",  "NW3",  "NW4",  "NW5",  "NW6",  "NW7",  "NW8" };
@@ -143,10 +143,8 @@ bool SendWebPeriphNameChange()
 
     char mac[13];
 
-    MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM]  = mac;
-    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
-    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_FROM]  = MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TS]    = millis();
     doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
     doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_NAME;
@@ -156,7 +154,7 @@ bool SendWebPeriphNameChange()
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
+    JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -166,10 +164,8 @@ bool SendWebPeerNameChange()
     JsonDocument doc; String jsondata; 
     char mac[13];
 
-    MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM]  = mac;
-    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
-    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_FROM]  = MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TS]    = millis();
     doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
     doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_NAME;
@@ -179,7 +175,7 @@ bool SendWebPeerNameChange()
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
+    JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -189,10 +185,8 @@ bool SendWebVinChange()
     JsonDocument doc; String jsondata; 
     char mac[13];
 
-    MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM]  = mac;
-    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
-    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_FROM]  = MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TS]    = millis();
     doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
     doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_VIN;
@@ -202,7 +196,7 @@ bool SendWebVinChange()
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
+    JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -212,10 +206,8 @@ bool SendWebVperAmpChange()
     JsonDocument doc; String jsondata; 
     char mac[13];
 
-    MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM]  = mac;
-    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
-    doc[SEND_CMD_JSON_TO]    = mac;
+    doc[SEND_CMD_JSON_FROM]  = MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TS]    = millis();
     doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
     doc[SEND_CMD_JSON_ORDER] = SEND_CMD_UPDATE_VPERAMP;
@@ -225,7 +217,7 @@ bool SendWebVperAmpChange()
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 200);  //Sending "jsondata"  
+    JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
     DEBUG3 ("%s\n\r", jsondata.c_str());
 
     return true;
@@ -235,9 +227,8 @@ bool SendWebNullwertChange()
     JsonDocument doc; String jsondata; 
     char mac[13];
 
-    MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM]  = mac;
-    MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_FROM]  = MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = MacByteToChar(mac, ActiveWebPeer->GetBroadcastAddress());
     doc[SEND_CMD_JSON_TO]    = mac;
     doc[SEND_CMD_JSON_TS]    = millis();
     doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
@@ -249,7 +240,7 @@ bool SendWebNullwertChange()
     serializeJson(doc, jsondata);  
     
     TSMsgSnd = millis();
-    esp_now_send(ActiveWebPeer->GetBroadcastAddress(), (uint8_t *) jsondata.c_str(), 100);  //Sending "jsondata"  
+    JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
     DEBUG3 ("%s\n\r", jsondata.c_str());
     return true;
 }
@@ -379,7 +370,7 @@ void InitWebServer()
                 DEBUG3 ("Prev aufgerufen\n\r");
                 if (ActiveWebPeer == &Module) 
                 {
-                    PeerClass *TempP = FindNextPeer(NULL, MODULE_ALL, CIRCULAR, ONLINE);
+                    PeerClass *TempP = FindPrevPeer(NULL, MODULE_ALL, CIRCULAR, ONLINE);
                     if (TempP) ActiveWebPeer = TempP;
                     ActiveWebPeriph = FindNextPeriph(ActiveWebPeer, NULL, SENS_TYPE_ALL, ONLINE);  
                 }
@@ -395,13 +386,13 @@ void InitWebServer()
                 DEBUG3 ("Next aufgerufen\n\r");
                 if (ActiveWebPeer == &Module) 
                 {
-                    PeerClass *TempP = FindNextPeer(NULL, MODULE_ALL, 1);
+                    PeerClass *TempP = FindNextPeer(NULL, MODULE_ALL, CIRCULAR, ONLINE);
                     if (TempP) ActiveWebPeer = TempP;
-                    ActiveWebPeriph = FindNextPeriph(ActiveWebPeer, NULL, SENS_TYPE_ALL, 1);  
+                    ActiveWebPeriph = FindNextPeriph(ActiveWebPeer, NULL, SENS_TYPE_ALL, CIRCULAR, ONLINE);  
                 }
                 else
                 {
-                    ActiveWebPeriph = FindNextPeriph(NULL, ActiveWebPeriph, SENS_TYPE_ALL, true, 1);
+                    ActiveWebPeriph = FindNextPeriph(NULL, ActiveWebPeriph, SENS_TYPE_ALL, CIRCULAR, ONLINE);
                     ActiveWebPeer   = FindPeerById(ActiveWebPeriph->GetPeerId());
                 }
             }
@@ -960,7 +951,7 @@ void PrepareJSON() {
     }
   }
 }
-void TopUpdateTimer(lv_timer_t * timer)
+/*void TopUpdateTimer(lv_timer_t * timer)
 {
 	if ((TSPair)  and (millis() - TSPair < PAIR_INTERVAL)){
 		lv_led_on(Ui_LedPair);
@@ -1011,7 +1002,7 @@ void TopUpdateTimer(lv_timer_t * timer)
 	#ifdef BATTERY_PORT
 		lv_label_set_text_fmt(ui_LblMenuBatt, "%.2f", analogRead(BATTERY_PORT*BATTERY_DEVIDER));
 	#endif
-}
+}*/
 #pragma endregion System-Screens
 #pragma region Other
 void ShowMessageBox(const char * Titel, const char *Txt, int delay, int opa)
@@ -1069,20 +1060,16 @@ void CalibVolt() {
 
     char mac[13];
 
-    MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM]        = mac;
-    MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
-    doc[SEND_CMD_JSON_TO]          = mac;
-    doc[SEND_CMD_JSON_TS]          = millis();
-    doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_VOLTAGE_CALIB;
-    doc[SEND_CMD_JSON_VALUE]       = lv_textarea_get_text(ui_TxtVolt);
-    doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
-    //doc[SEND_CMD_JSON_CONFIRM]     = 1;
+    doc[SEND_CMD_JSON_FROM]  = MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_VOLTAGE_CALIB;
+    doc[SEND_CMD_JSON_VALUE] = lv_textarea_get_text(ui_TxtVolt);
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
     
     serializeJson(doc, jsondata);  
 
     JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  
-    //delay(1000);
         
     DEBUG3 ("%s", jsondata.c_str());
 }
@@ -1092,14 +1079,11 @@ void CalibAmp()
 
     char mac[13];
 
-    MacByteToChar(mac, Module.GetBroadcastAddress());
-    doc[SEND_CMD_JSON_FROM]        = mac;
-    MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
-    doc[SEND_CMD_JSON_TO]          = mac;
-    doc[SEND_CMD_JSON_TS]          = millis();
-    doc[SEND_CMD_JSON_ORDER]       = SEND_CMD_CURRENT_CALIB;
-    doc[SEND_CMD_JSON_TTL]         = SEND_CMD_MSG_TTL;
-    doc[SEND_CMD_JSON_CONFIRM]     = 1;
+    doc[SEND_CMD_JSON_FROM]  = MacByteToChar(mac, Module.GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TO]    = MacByteToChar(mac, ActivePeer->GetBroadcastAddress());
+    doc[SEND_CMD_JSON_TS]    = millis();
+    doc[SEND_CMD_JSON_ORDER] = SEND_CMD_CURRENT_CALIB;
+    doc[SEND_CMD_JSON_TTL]   = SEND_CMD_MSG_TTL;
         
     serializeJson(doc, jsondata);  
     JeepifySend(broadcastAddressAll, (uint8_t *) jsondata.c_str(), 250, true);  

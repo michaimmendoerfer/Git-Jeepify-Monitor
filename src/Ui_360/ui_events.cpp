@@ -197,7 +197,7 @@ void Ui_Peers_Prepare(lv_event_t * e)
 		P = PeerList.get(i);
 
 		if (Options != "") Options += "\n";
-			
+		
 		if ((P->GetTSLastSeen() == 0) or (millis()- P->GetTSLastSeen() > OFFLINE_INTERVAL)) Options += "off: <";
 		else Options += "on:  <"; 
 			

@@ -3,8 +3,8 @@
 
 #include <Jeepify.h>
 
-//#define MODULE_MONITOR_360
-#define MODULE_MONITOR_480
+#define MODULE_MONITOR_360
+//#define MODULE_MONITOR_480
 //#define MODULE_MONITOR_240
 //#define MODULE_MONITOR_240_C3
 //#define MODULE_MONITOR_240_S3
@@ -13,7 +13,6 @@
 #define PROTOKOLL_VERSION       "3.10"
 
 #ifdef MODULE_MONITOR_360
-    #include "scr_st77916.h"
     #define NODE_NAME "Monitor 360"
     #define NODE_TYPE MONITOR_ROUND
     #define SCREEN_RES_HOR 360
