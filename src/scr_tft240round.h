@@ -5,7 +5,7 @@
 #include <TFT_eSPI.h>
 #include "CST816D.h"
 #include <lvgl.h>
-#include <Arduino_GFX_Library.h>"
+#include <Arduino_GFX_Library.h>
 
 #define SCREEN_RES_HOR 240
 #define SCREEN_RES_VER 240

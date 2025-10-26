@@ -23,11 +23,18 @@
 #define DEBUG3(...) if ((Module.GetDebugMode()) and (DEBUG_LEVEL > 2)) Serial.printf(__VA_ARGS__)
 #define JX(...) (doc[__VA_ARGS__].is<JsonVariant>())
 
-#define RECORDED_VALUES 10
-struct struct_Graph {
-  float    Value[RECORDED_VALUES][4];
-  uint32_t TSValue[RECORDED_VALUES];
-  int      Index;
+struct ConfirmStruct {
+    uint8_t  Address[6];
+    char     Message[250];
+    volatile uint32_t TSMessage;
+    int      Try;
+    bool     Confirmed;
+};
+
+struct ReceivedMessagesStruct {
+    uint8_t  From[6];
+    uint32_t TS;
+    uint32_t SaveTime;
 };
 
 void   PrintMAC(const uint8_t * mac_addr);

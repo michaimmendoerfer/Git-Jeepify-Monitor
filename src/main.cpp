@@ -2,7 +2,7 @@
 //#define KILL_NVS 
 
 #include "main.h"
-#include "scr_st77916.h"
+//#include "scr_st77916.h"
 #pragma region Globals
 
 const char *ArrNullwert[MAX_PERIPHERALS] = {"NW0",  "NW1",  "NW2",  "NW3",  "NW4",  "NW5",  "NW6",  "NW7",  "NW8" };
@@ -14,20 +14,6 @@ int PeerCount;
 Preferences preferences;
 uint8_t broadcastAddressAll[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 const char *broadCastAddressAllC = "FFFFFFFFFFFF";
-
-struct ConfirmStruct {
-    uint8_t  Address[6];
-    char     Message[250];
-    volatile uint32_t TSMessage;
-    int      Try;
-    bool     Confirmed;
-};
-
-struct ReceivedMessagesStruct {
-    uint8_t  From[6];
-    uint32_t TS;
-    uint32_t SaveTime;
-};
 
 MyLinkedList<ConfirmStruct*> ConfirmList = MyLinkedList<ConfirmStruct*>();
 MyLinkedList<ReceivedMessagesStruct*> ReceivedMessagesList = MyLinkedList<ReceivedMessagesStruct*>();
@@ -47,8 +33,6 @@ volatile uint32_t TSMsgEich = 0;
 volatile uint32_t TSMsgPair = 0;
 volatile uint32_t TSPair    = 0;
 volatile uint32_t TSConfirm = 0;
-
-struct_Graph Graph[MAX_PERIPHERALS];
 
 int ActiveMultiScreen;
 bool WebServerActive = true;
@@ -589,7 +573,7 @@ void ToggleWebServer()
                             // check for periph name change
                             if (strcmp(_PeriphName, P->GetPeriphName(Si))) P->SetPeriphName(Si, _PeriphName);
                             
-                            P->SetPeriphOldValue(Si, P->GetPeriphValue(Si, 0), 0);
+                            P->SetPeriphOldValue(Si, P->GetPeriphValue(Si, 0), 0);// überflüssig?
                             P->SetPeriphValue(Si, _Value0, 0);
                             P->SetPeriphOldValue(Si, P->GetPeriphValue(Si, 1), 1);
                             P->SetPeriphValue(Si, _Value1, 1);
@@ -598,14 +582,7 @@ void ToggleWebServer()
                             P->SetPeriphOldValue(Si, P->GetPeriphValue(Si, 3), 3);
                             P->SetPeriphValue(Si, _Value3, 3);
 
-                            Graph[Si].Index++;
-                            if (Graph[Si].Index == RECORDED_VALUES) Graph[Si].Index = 0;
-
-                            Graph[Si].Value[Graph[Si].Index][0] = _Value0;
-                            Graph[Si].Value[Graph[Si].Index][1] = _Value1;
-                            Graph[Si].Value[Graph[Si].Index][2] = _Value2;
-                            Graph[Si].Value[Graph[Si].Index][3] = _Value3;
-                            Graph[Si].TSValue[Graph[Si].Index]  = millis();
+                            P->AddPeriphSavedValue(Si, _Value0, _Value1, _Value2, _Value3);
 
                             P->SetPeriphChanged(Si, false); //werte wieder uptodate
 

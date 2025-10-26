@@ -29,32 +29,42 @@ void CompThing::Update()
 }
 void CompThing::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, PeriphClass *Periph, lv_event_cb_t event_cb)
 {
-
 }
 void CompThing::ChartInit(int x, int y, int Width, int Height, int Anz)
 {    
     _Chart = lv_chart_create(lv_scr_act());
     if (_Periph->GetType() == SENS_TYPE_AMP)  lv_chart_set_range(_Chart,  LV_CHART_AXIS_PRIMARY_Y, 0, 40);
     if (_Periph->GetType() == SENS_TYPE_VOLT) lv_chart_set_range(_Chart,  LV_CHART_AXIS_PRIMARY_Y, 0, 15);
+    if (_Periph->IsSwitch())                  lv_chart_set_range(_Chart,  LV_CHART_AXIS_PRIMARY_Y, 0,  1);
+    
+    _ChartSerie = lv_chart_add_series(_Chart, lv_palette_main(LV_PALETTE_GREEN), LV_CHART_AXIS_SECONDARY_Y);
+
+    lv_obj_center(_Chart);
     lv_obj_set_size(_Chart, Width, Height);
     lv_obj_set_pos(_Chart, x, y);
     lv_obj_set_style_size(_Chart, 0, LV_PART_INDICATOR);
-    lv_obj_set_align(_Chart, LV_ALIGN_CENTER);
 
     lv_chart_set_type(_Chart, LV_CHART_TYPE_LINE); 
-    lv_chart_set_point_count(_Chart, RECORDED_VALUES);
-    _ChartSerie = lv_chart_add_series(_Chart, lv_palette_main(LV_PALETTE_GREEN), LV_CHART_AXIS_SECONDARY_Y);
+    lv_chart_set_point_count(_Chart, Anz);
+    lv_chart_set_div_line_count(_Chart, 0, 0);
 
+    lv_obj_set_style_bg_opa(_Chart, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(_Chart, 0, LV_PART_MAIN);
+
+    //lv_obj_set_style_bg_opa(_Chart, LV_OPA_0, 0);
 }
 void CompThing::ChartUpdate()
 {
-    int GraphIndex = Graph[_Periph->GetPos()].Index;
+    int GraphIndex = _Periph->GetSaveValueIndex();
+    
     DEBUG3 ("GraphUpdate: GraphIndex: %d\n\r", GraphIndex);
-    for (int ChartIndex=0; ChartIndex<RECORDED_VALUES; ChartIndex++);
+    for (int ChartIndex=0; ChartIndex<RECORDED_VALUES; ChartIndex++)
     {
-        Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos] = random(0,15);
+        //_Periph->AddSavedValue(random(0,1), random(0,1), random(0,15), random(0,35));
+
         //DEBUG3 ("Graph[%d].value[%d][%d] = %.2f\n\r", _Periph->GetPos(), GraphIndex, _GraphValuePos, Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos]);
-        lv_chart_set_next_value(_Chart, _ChartSerie, Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos]);
+        //lv_chart_set_next_value(_Chart, _ChartSerie, _Periph->GetSavedValue(GraphIndex, _GraphValuePos));
+        _ChartSerie->y_points[ChartIndex] = random(0,35);
         GraphIndex--;
         if (GraphIndex < 0) GraphIndex = RECORDED_VALUES-1;
     }
@@ -82,7 +92,6 @@ CompButton::CompButton()
     _ClassType = 1;
 	_SpinnerVisible = false;
     _GraphVisible = false;
-    _GraphValuePos = 0;
 }
 CompButton::~CompButton()
 {
@@ -101,6 +110,7 @@ void CompButton::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     _event_cb = event_cb;
     _Pos = Pos;
     _Size = size;
+    _GraphValuePos = V_ON;
    
     _x = x;
     _y = y;			
@@ -426,7 +436,7 @@ void CompButton::Update()
 CompSensor::CompSensor()
 {
     _ClassType = 2;
-    _GraphVisible = false;
+    _GraphVisible = true;
 }
 CompSensor::~CompSensor()
 {
@@ -438,7 +448,8 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     _Periph = Periph;
     _event_cb = event_cb;
     _Pos = Pos;
-   
+    if (Periph->GetType() == SENS_TYPE_VOLT) _GraphValuePos = V_VOLT;
+    if (Periph->GetType() == SENS_TYPE_AMP)  _GraphValuePos = V_AMP;
     _x = x;
     _y = y;		
 
@@ -478,7 +489,6 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_style_shadow_ofs_x(_Button, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_ofs_y(_Button, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    
     _LblPeer = lv_label_create(_Button);
     lv_obj_set_width(_LblPeer, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(_LblPeer, LV_SIZE_CONTENT);    /// 1
@@ -561,7 +571,7 @@ void CompSensor::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, 
     lv_obj_set_style_pad_top(_Arc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_bottom(_Arc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
-    if (_GraphVisible) ChartInit(x-_Width/2, y+_Height*0.3, _Width/2, _Height/4, RECORDED_VALUES);
+    if (_GraphVisible) ChartInit(x, y+_Height*0.25, _Width*0.7, _Height*0.4, RECORDED_VALUES);
         
     lv_obj_add_event_cb(_Button, _event_cb, LV_EVENT_ALL, NULL);  
 }
@@ -684,7 +694,7 @@ void CompMeter::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
     _Width  = size;
     _Height = size;
     _Size = size;	
-
+    
 	_Button = lv_meter_create(comp_parent);
 	lv_obj_center(_Button);
 	lv_obj_set_style_bg_color(_Button, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -699,7 +709,7 @@ void CompMeter::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
 	
 	if (_Periph->GetType() == SENS_TYPE_AMP)
 	{
-		_GraphValuePos = 3;
+        _GraphValuePos = V_AMP;
         lv_meter_set_scale_ticks(_Button, _Scale, 41, 2, 10, lv_palette_main(LV_PALETTE_GREY));
     	lv_meter_set_scale_major_ticks(_Button, _Scale, 5, 4, 15, lv_color_black(), 15);
     	lv_meter_set_scale_range(_Button, _Scale, 0, 400, 240, 150);
@@ -724,7 +734,7 @@ void CompMeter::Setup(lv_obj_t * comp_parent, int x, int y, int Pos, int size, P
 	}
 	else if (_Periph->GetType() == SENS_TYPE_VOLT)
 	{	
-		_GraphValuePos = 2;
+        _GraphValuePos = V_VOLT;
         lv_meter_set_scale_ticks(_Button, _Scale, 31, 2, 10, lv_palette_main(LV_PALETTE_GREY));
     	lv_meter_set_scale_major_ticks(_Button, _Scale, 5, 4, 15, lv_color_black(), 15);
     	lv_meter_set_scale_range(_Button, _Scale, 90, 150, 240, 150);

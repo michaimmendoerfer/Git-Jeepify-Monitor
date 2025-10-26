@@ -11,8 +11,6 @@
 #include "Jeepify.h"
 #include "CompButton.h"
 
-extern struct_Graph Graph[MAX_PERIPHERALS];
-
 class CompThing {
     static int  _ClassId;
 
