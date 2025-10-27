@@ -55,20 +55,20 @@ void CompThing::ChartInit(int x, int y, int Width, int Height, int Anz)
 }
 void CompThing::ChartUpdate()
 {
-    int GraphIndex = _Periph->GetSaveValueIndex();
+    int ValueIndex = _Periph->GetSavedValueIndex();
     
-    DEBUG3 ("GraphUpdate: GraphIndex: %d\n\r", GraphIndex);
-    for (int ChartIndex=0; ChartIndex<RECORDED_VALUES; ChartIndex++)
+    DEBUG3 ("GraphUpdate: GraphIndex: %d\n\r", ValueIndex);
+    for (int ChartIndex=RECORDED_VALUES; ChartIndex>=0; ChartIndex--)
     {
-        //_Periph->AddSavedValue(random(0,1), random(0,1), random(0,15), random(0,35));
+        _Periph->AddSavedValue((float) random(0,1), (float) random(0,1), (float) random(0,15), (float) random(0,35));
 
         //DEBUG3 ("Graph[%d].value[%d][%d] = %.2f\n\r", _Periph->GetPos(), GraphIndex, _GraphValuePos, Graph[_Periph->GetPos()].Value[GraphIndex][_GraphValuePos]);
         //lv_chart_set_next_value(_Chart, _ChartSerie, _Periph->GetSavedValue(GraphIndex, _GraphValuePos));
-        _ChartSerie->y_points[ChartIndex] = random(0,35);
-        GraphIndex--;
-        if (GraphIndex < 0) GraphIndex = RECORDED_VALUES-1;
+        _ChartSerie->y_points[ChartIndex] = _Periph->GetSavedValue(ValueIndex, _GraphValuePos);
+        ValueIndex++;
+        if (ValueIndex == RECORDED_VALUES) ValueIndex = 0;
     }
-    lv_chart_refresh(_Chart); // nötig???
+    lv_chart_refresh(_Chart); 
 }
 void CompThing::SetStyle(lv_obj_t *obj)
 {
