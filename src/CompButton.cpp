@@ -18,10 +18,7 @@ CompThing::CompThing()
 CompThing::~CompThing()
 {
 	if (_Button)  { lv_obj_del(_Button); _Button = NULL; }
-    if (_GraphVisible)
-    {
-        lv_obj_del(_Chart); _Chart = NULL; 
-    }
+    //if (_Chart)   { lv_obj_del(_Chart) ; _Chart = NULL; }
 }
 void CompThing::Update()
 { 

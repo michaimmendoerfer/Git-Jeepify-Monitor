@@ -21,11 +21,11 @@ SET(SOURCES components/ui_comp_buttonsensorsmall.c
     images/ui_img_menubtn2_png.c
     images/ui_img_menubtn3_png.c
     images/ui_img_menubtn4_png.c
-    images/ui_img_ansgarmodule_4_png.c
     images/ui_img_friedermodule_disp_png.c
     images/ui_img_horstrelais2_png.c
     images/ui_img_1769637049.c
     images/ui_img_rolfmodule_round_png.c
+    images/ui_img_ansgarmodule_4_png.c
     images/ui_img_1528892059.c
     images/ui_img_1471590615.c
     images/ui_img_743505413.c

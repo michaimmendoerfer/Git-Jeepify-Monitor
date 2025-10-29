@@ -55,7 +55,7 @@ void Ui_Peer_Prepare()
 {
 	if (ActivePeer) {
 		lv_label_set_text_static(ui_LblPeerName, ActivePeer->GetName());
-		switch (ActivePeer->GetType())
+		/*switch (ActivePeer->GetType())
 		{
 			case SWITCH_1_WAY:	 lv_img_set_src(ui_ImgPeerType, &ui_img_horstrelais2_png); break;
 			case SWITCH_2_WAY:	 lv_img_set_src(ui_ImgPeerType, &ui_img_horstrelais2_png); break;
@@ -64,7 +64,7 @@ void Ui_Peer_Prepare()
 			case MONITOR_BIG:	 lv_img_set_src(ui_ImgPeerType, &ui_img_friedermodule_disp_png); break;
 			case BATTERY_SENSOR: lv_img_set_src(ui_ImgPeerType, &ui_img_friedermodule_disp_png); break;
 		}	
-
+*/
 		if (ActivePeer->GetSleepMode()) {
 			lv_obj_add_state(ui_BtnPeer3, LV_STATE_CHECKED);
 		}
@@ -463,7 +463,7 @@ void Ui_Periph_Choice_Loaded(lv_event_t * e)
 
 		lv_label_set_text(ui_LblPeriphChoiceType, TypeInText(ActivePeriph->GetType())); 
 
-		if (ActivePeriph->IsSwitch()) lv_img_set_src(ui_ImgPeerChoice, &ui_img_888658411); 
+		if (ActivePeriph->IsSwitch()) lv_img_set_src(ui_ImgPeerChoice, &ui_img_menubtn1_png); 
 		if (ActivePeriph->IsSensor()) lv_img_set_src(ui_ImgPeerChoice, &ui_img_menubtn1_png);
 	}
 }
