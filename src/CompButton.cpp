@@ -17,8 +17,9 @@ CompThing::CompThing()
 }
 CompThing::~CompThing()
 {
-	if (_Button)  { lv_obj_del(_Button); _Button = NULL; }
-    //if (_Chart)   { lv_obj_del(_Chart) ; _Chart = NULL; }
+	if (_Button)     { lv_obj_del(_Button);     _Button     = NULL; }
+    if (_Chart)      { lv_obj_del(_Chart) ;     _Chart      = NULL; }
+    //if (_ChartSerie) { lv_obj_del(_ChartSerie); _ChartSerie = NULL; }
 }
 void CompThing::Update()
 { 
@@ -55,7 +56,7 @@ void CompThing::ChartUpdate()
     int ValueIndex = _Periph->GetSavedValueIndex();
     
     DEBUG3 ("GraphUpdate: GraphIndex: %d\n\r", ValueIndex);
-    for (int ChartIndex=RECORDED_VALUES; ChartIndex>=0; ChartIndex--)
+    for (int ChartIndex=RECORDED_VALUES-1; ChartIndex>=0; ChartIndex--)
     {
         _Periph->AddSavedValue((float) random(0,1), (float) random(0,1), (float) random(0,15), (float) random(0,35));
 

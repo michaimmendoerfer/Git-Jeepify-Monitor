@@ -2,7 +2,13 @@
 //#define KILL_NVS 
 
 #include "main.h"
-//#include "scr_st77916.h"
+#ifdef MODULE_MONITOR_360
+    #include "scr_tft360round_silver.h"
+#endif
+#ifdef MODULE_MONITOR_360_KNOB
+    #include "scr_tft360Knob.h"
+#endif
+
 #pragma region Globals
 
 const char *ArrNullwert[MAX_PERIPHERALS] = {"NW0",  "NW1",  "NW2",  "NW3",  "NW4",  "NW5",  "NW6",  "NW7",  "NW8" };
@@ -1087,7 +1093,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
 { 
     if (status == ESP_NOW_SEND_SUCCESS)
     {
-        DEBUG3 ("Message send SUCCESS\n\r");
+        //DEBUG3 ("Message send SUCCESS\n\r");
     }
     else 
     {

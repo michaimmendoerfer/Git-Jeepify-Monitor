@@ -343,6 +343,7 @@ void Ui_Multi_Clicked(lv_event_t * e)
     }	
 	else if (event_code == LV_EVENT_LONG_PRESSED) {
         MultiPosToChange = atoi(lv_label_get_text(lv_obj_get_child(target, 4)));
+		
 		_ui_screen_change(&ui_ScrPeriph, LV_SCR_LOAD_ANIM_NONE, 0, 0, &ui_ScrPeriph_screen_init);
     }
 }
