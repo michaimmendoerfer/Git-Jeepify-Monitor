@@ -20,6 +20,7 @@ PeriphClass *ActivePeriphShown;
 lv_obj_t *Ui_LedSnd;
 lv_obj_t *Ui_LedRcv;
 lv_obj_t *Ui_LedPair;
+lv_obj_t *ui_LblMenuBatt;
 
 lv_timer_t *MultiTimer;
 lv_timer_t *SwitchTimer;
@@ -499,7 +500,10 @@ void TopUpdateTimer(lv_timer_t * timer)
 		Module.SetPairMode(false);
 	}
 	#ifdef BATTERY_PORT
-		lv_label_set_text_fmt(ui_LblMenuBatt, "%.2f", analogRead(BATTERY_PORT*BATTERY_DEVIDER));
+		char buf[10];
+		dtostrf(analogRead(BATTERY_PORT) * BATTERY_DEVIDER / 4095 * 3.3, 0, 3, buf);
+		strcat(buf, "V");
+		lv_label_set_text(ui_LblMenuBatt, buf);
 	#endif
 }
 
@@ -509,6 +513,16 @@ void Ui_Init_Custom(lv_event_t * e)
 	static uint32_t user_data = 10; 
 	char LEDSize = 10;
 	lv_timer_t * timer = lv_timer_create(TopUpdateTimer, 100,  &user_data);
+
+	ui_LblMenuBatt = lv_label_create(lv_layer_top());
+	lv_obj_set_width(ui_LblMenuBatt, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_LblMenuBatt, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_LblMenuBatt, 0);
+    lv_obj_set_y(ui_LblMenuBatt, 150);
+    lv_obj_set_align(ui_LblMenuBatt, LV_ALIGN_CENTER);
+    lv_obj_set_style_text_color(ui_LblMenuBatt, lv_color_hex(0xADADAD), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_LblMenuBatt, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LblMenuBatt, &lv_font_montserrat_14, LV_PART_MAIN | LV_STATE_DEFAULT);
 
 	Ui_LedRcv  = lv_led_create(lv_layer_top());
 	lv_obj_set_size(Ui_LedRcv, LEDSize, LEDSize);
