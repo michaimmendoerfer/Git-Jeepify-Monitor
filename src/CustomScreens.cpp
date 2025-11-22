@@ -20,6 +20,29 @@ void ui_ScrSingle_screen_init(void)
     lv_obj_add_event_cb(ui_ScrSingle, ui_event_ui_ScrSingle, LV_EVENT_ALL, NULL);
 
 }
+void Ui_Single_ClearScreen()
+{
+	if (CompThingArray[0]) 
+	{
+		delete CompThingArray[0];
+		CompThingArray[0] = NULL;
+	}
+
+}
+void Ui_Single_FillScreen()
+{
+	if (ActivePeriphShown->IsSensor()) 
+		{
+			CompThingArray[0] = new CompMeter;
+			CompThingArray[0]->Setup(ui_ScrSingle, 0, 0, 0, SCREEN_RES_HOR, ActivePeriphShown, Ui_Single_Clicked);
+		}
+		else if (ActivePeriphShown->IsSwitch()) 
+		{
+			CompThingArray[0] = new CompButton;
+			CompThingArray[0]->Setup(ui_ScrSingle, 0, 0, 0, 2, ActivePeriphShown, Ui_Single_Clicked);
+		}
+		CompThingArray[0]->Update();
+}
 void Ui_Single_Next(lv_event_t * e)
 {	
 	if (ActivePeriphShown->IsType(SENS_TYPE_SENS))   
@@ -36,8 +59,8 @@ void Ui_Single_Next(lv_event_t * e)
 
 	if (ActivePeriphShown)
 	{
-		Ui_Single_Leave(e);
-		Ui_Single_Prepare(e);
+		Ui_Single_ClearScreen();
+		Ui_Single_FillScreen();
 	}
 }
 void Ui_Single_Prev(lv_event_t * e)
@@ -56,33 +79,26 @@ void Ui_Single_Prev(lv_event_t * e)
 	
 	if (ActivePeriphShown)
 	{
-		Ui_Single_Leave(e);
-		Ui_Single_Prepare(e);
+		Ui_Single_ClearScreen();
+		Ui_Single_FillScreen();
 	}
 }
 void Ui_Single_Prepare(lv_event_t * e)
 {
 	int Pos = 0;
+
+	if (Knob.Clicked)
+	{
+		Knob.LastClicked = Knob.Clicked;
+		Knob.Clicked     = 0;
+	}
+
 	if (ActivePeriphShown)
 	{
-		if (CompThingArray[Pos]) 
-			{
-				delete CompThingArray[Pos];
-				CompThingArray[Pos] = NULL;
-			}
+		Ui_Single_ClearScreen();
 
 		//size noch nicht gut
-		if (ActivePeriphShown->IsSensor()) 
-		{
-			CompThingArray[Pos] = new CompMeter;
-			CompThingArray[Pos]->Setup(ui_ScrSingle, 0, 0, 0, SCREEN_RES_HOR, ActivePeriphShown, Ui_Single_Clicked);
-		}
-		else if (ActivePeriphShown->IsSwitch()) 
-		{
-			CompThingArray[Pos] = new CompButton;
-			CompThingArray[Pos]->Setup(ui_ScrSingle, 0, 0, 0, 2, ActivePeriphShown, Ui_Single_Clicked);
-		}
-		CompThingArray[Pos]->Update();
+		Ui_Single_FillScreen();
 		
 		static uint32_t user_data = 10;
 		
@@ -92,12 +108,27 @@ void Ui_Single_Prepare(lv_event_t * e)
 		}
 		else 
 		{
-			SingleTimer = lv_timer_create(SingleUpdateTimer, 500,  &user_data);
+			SingleTimer = lv_timer_create(SingleUpdateTimer, 100,  &user_data);
 		}
 	}
 }
 void SingleUpdateTimer(lv_timer_t * timer)
 {
+	if (Knob.Clicked)
+	{
+		Knob.LastClicked = Knob.Clicked;
+		Knob.Clicked     = 0;
+		
+		if (Knob.Diff < 0) 
+		{
+			Ui_Single_Prev(NULL);
+		}
+		else
+		{
+			Ui_Single_Next(NULL);
+		}
+	}
+	//Serial.println("SingleTimer");
 	if (CompThingArray[0]) CompThingArray[0]->Update();
 }
 void Ui_Single_Clicked(lv_event_t * e)

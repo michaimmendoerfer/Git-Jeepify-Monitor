@@ -25,6 +25,7 @@ MyLinkedList<ConfirmStruct*> ConfirmList = MyLinkedList<ConfirmStruct*>();
 MyLinkedList<ReceivedMessagesStruct*> ReceivedMessagesList = MyLinkedList<ReceivedMessagesStruct*>();
 
 PeerClass Module;
+KnobStruct Knob;
 
 String jsondataBuf;
 
@@ -712,7 +713,9 @@ void loop()
 #pragma region Send-Things
 void GarbageMessages(lv_timer_t * timer)
 {
-    Serial.println("Garbage-Kollektion");
+    //Serial.printf("free Heap: %d\n\r", ESP.getFreeHeap());
+
+    //Serial.println("Garbage-Kollektion");
     if (ReceivedMessagesList.size() > 0)
     {  
         for (int i=ReceivedMessagesList.size()-1; i>=0; i--)
@@ -721,7 +724,7 @@ void GarbageMessages(lv_timer_t * timer)
             
             if (millis() > RMItem->SaveTime + SEND_CMD_MSG_HOLD*1000)
             {
-                DEBUG3 ("Message aus RMList entfernt\n\r");
+                DEBUG3 ("Garbage-Kollektion: Message aus RMList entfernt\n\r");
                 ReceivedMessagesList.remove(i);
                 delete RMItem;
             }

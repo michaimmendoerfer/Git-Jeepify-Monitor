@@ -9,6 +9,7 @@ SET(SOURCES components/ui_comp_buttonsensorsmall.c
     screens/ui_ScrVolt.c
     screens/ui_ScrPeriph.c
     screens/ui_ScrMulti.c
+    screens/ui_ScrSystem.c
     ui_theme_manager.cpp
     ui_themes.cpp
     ui.c

@@ -27,6 +27,7 @@
     #define NODE_TYPE MONITOR_ROUND
     #define BATTERY_PORT    1
     #define BATTERY_DEVIDER 2
+    #define HAS_ROTARY      1
     #define SCREEN_RES_HOR 360
     #define SCREEN_RES_VER 360
     #define UI_H_DIR        "Ui_360/ui.h"

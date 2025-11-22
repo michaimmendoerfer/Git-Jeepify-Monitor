@@ -1,6 +1,7 @@
 #ifndef _SCR_ST77916_H_
 #define _SCR_ST77916_H_
 
+#include "main.h"
 #include "pincfg.h"
 #include <lvgl.h>
 #include <ESP_IOExpander_Library.h>
@@ -28,6 +29,7 @@ static ESP_PanelTouch *touch = NULL;
 static int32_t ctx_diff;
 static lv_indev_state_t encoder_state;
 int encoder_cont = 0;
+
 #define USE_CUSTOM_INIT_CMD 0 // 是否用自定义的初始化代码
 
 #if TOUCH_PIN_NUM_INT >= 0
@@ -331,6 +333,7 @@ static int32_t _knob_calculate_diff(knob_handle_t knob, knob_event_t event)
 
     int32_t diff = 0;
     int32_t invd = iot_knob_get_count_value(knob);
+
     printf("invd = %d,last_v = %d\r\n",invd,last_v);            
     knob_change(event,invd);       
     if (last_v ^ invd) {
@@ -341,6 +344,11 @@ static int32_t _knob_calculate_diff(knob_handle_t knob, knob_event_t event)
         last_v = invd;
     }
     printf("diff = %d\r\n",diff);
+
+    Knob.Invd        = invd;
+    Knob.Last        = last_v;
+    Knob.Diff        = diff;
+    Knob.Clicked     = millis();
 
     return diff;
 }

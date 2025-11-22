@@ -14,12 +14,13 @@ CompThing::CompThing()
     _PeriphValueCombo = true;
     _dBmVisible       = false;
     _GraphValuePos    = -1;
+
+    _Chart= NULL;
 }
 CompThing::~CompThing()
 {
 	if (_Button)     { lv_obj_del(_Button);     _Button     = NULL; }
     if (_Chart)      { lv_obj_del(_Chart) ;     _Chart      = NULL; }
-    //if (_ChartSerie) { lv_obj_del(_ChartSerie); _ChartSerie = NULL; }
 }
 void CompThing::Update()
 { 

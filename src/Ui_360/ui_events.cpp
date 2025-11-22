@@ -25,6 +25,7 @@ lv_obj_t *ui_LblMenuBatt;
 lv_timer_t *MultiTimer;
 lv_timer_t *SwitchTimer;
 lv_timer_t *SettingsTimer;
+lv_timer_t *ChoiceTimer;
 
 #define MAX_SWITCHES 1
 #define MY_ANIM 	 LV_SCR_LOAD_ANIM_FADE_ON
@@ -46,6 +47,7 @@ LV_IMG_DECLARE
 void Keyboard_cb(lv_event_t * event);
 
 void MultiUpdateTimer(lv_timer_t * timer);
+void ChoiceUpdateTimer(lv_timer_t * timer);
 void SettingsUpdateTimer(lv_timer_t * timer);
 void Ui_Multi_Clicked(lv_event_t * e);
 
@@ -245,9 +247,20 @@ void Ui_JSON_Prepare(lv_event_t * e)
 }
 #pragma endregion Screen_JSON
 #pragma region Screen_MultiMeter
-void Ui_Multi_Loaded(lv_event_t * e)
+void Ui_Multi_ClearScreen()
 {
-	static uint32_t user_data = 10;
+	for (int Pos = 0; Pos<PERIPH_PER_SCREEN; Pos++)
+	{
+		if (CompThingArray[Pos])
+		{
+			delete CompThingArray[Pos];
+			CompThingArray[Pos] = NULL;
+		}
+	}
+	lv_obj_invalidate(lv_scr_act());
+}
+void Ui_Multi_FillScreen()
+{
 	lv_label_set_text(ui_LblMultiScreenName,Screen[ActiveMultiScreen].GetName());
 					
 	for (int Pos=0; Pos<PERIPH_PER_SCREEN; Pos++)
@@ -276,14 +289,12 @@ void Ui_Multi_Loaded(lv_event_t * e)
 			if (Periph->IsSensor())
 			{	
 				CompThingArray[Pos] = new CompSensor;
-					//CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 					CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Update();
 			}
 			else if (Periph->IsSwitch())
 			{
 				CompThingArray[Pos] = new CompButton;
-				//CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Setup(ui_ScrMulti, x, y, Pos, 1, Periph, Ui_Multi_Clicked);
 				CompThingArray[Pos]->Update();
 			}
@@ -293,8 +304,19 @@ void Ui_Multi_Loaded(lv_event_t * e)
 			lv_obj_clear_flag(lv_obj_get_child(ui_Container2, Pos), LV_OBJ_FLAG_HIDDEN);
 			CompThingArray[Pos] = NULL;
 		}
-
 	}
+}
+void Ui_Multi_Loaded(lv_event_t * e)
+{
+	static uint32_t user_data = 10;
+	
+	if (Knob.Clicked)
+	{
+		Knob.LastClicked = Knob.Clicked;
+		Knob.Clicked     = 0;
+	}
+	
+	Ui_Multi_FillScreen();
 	
 	if (MultiTimer) 
 	{
@@ -302,11 +324,30 @@ void Ui_Multi_Loaded(lv_event_t * e)
 	}
 	else 
 	{
-		MultiTimer = lv_timer_create(MultiUpdateTimer, 500,  &user_data);
+		MultiTimer = lv_timer_create(MultiUpdateTimer, 100,  &user_data);
 	}
 }
 void MultiUpdateTimer(lv_timer_t * timer)
 {
+	if (Knob.Clicked)
+	{
+		Knob.LastClicked = Knob.Clicked;
+		Knob.Clicked     = 0;
+		
+		Ui_Multi_ClearScreen();
+		if (Knob.Diff < 0) 
+		{
+			ActiveMultiScreen--;
+			if (ActiveMultiScreen == -1) ActiveMultiScreen = MULTI_SCREENS-1;
+		}
+		else
+		{
+			ActiveMultiScreen++;
+			if (ActiveMultiScreen == MULTI_SCREENS) ActiveMultiScreen = 0;
+		}
+		Ui_Multi_FillScreen();
+	}
+
 	for (int Pos=0; Pos<PERIPH_PER_SCREEN; Pos++) 
 		if (Screen[ActiveMultiScreen].GetPeriphId(Pos) >= 0) CompThingArray[Pos]->Update();
 
@@ -314,9 +355,9 @@ void MultiUpdateTimer(lv_timer_t * timer)
 void Ui_Multi_Clicked(lv_event_t * e)
 {
 	lv_event_code_t event_code = lv_event_get_code(e);
-    lv_obj_t * target = lv_event_get_target(e);
-
-    if (event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_LEFT) {
+	lv_obj_t * target = lv_event_get_target(e);  
+	
+	if (event_code == LV_EVENT_GESTURE &&  lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_LEFT) {
         lv_indev_wait_release(lv_indev_get_act());
         Ui_Multi_Next(e);
     }
@@ -390,64 +431,25 @@ void Ui_Multi_Unload(lv_event_t * e)
 	if (MultiTimer) lv_timer_del(MultiTimer);
 	MultiTimer = NULL;
 	
-	lv_obj_invalidate(lv_scr_act());
-	
-	for (int Pos = 0; Pos<PERIPH_PER_SCREEN; Pos++)
-	{
-		if (CompThingArray[Pos])
-		{
-			delete CompThingArray[Pos];
-			CompThingArray[Pos] = NULL;
-		}
-	}
+	Ui_Multi_ClearScreen();
 }
 void Ui_Multi_Next(lv_event_t * e)
 {
+	Ui_Multi_ClearScreen();
 	ActiveMultiScreen++;
 	if (ActiveMultiScreen == MULTI_SCREENS) ActiveMultiScreen = 0;
-	
-	Ui_Multi_Unload(e);
-	Ui_Multi_Loaded(e);
+	Ui_Multi_FillScreen();
 }
 void Ui_Multi_Prev(lv_event_t * e)
 {
+	Ui_Multi_ClearScreen();
 	ActiveMultiScreen--;
 	if (ActiveMultiScreen == -1) ActiveMultiScreen = MULTI_SCREENS-1;
-		
-	Ui_Multi_Unload(e);
-	Ui_Multi_Loaded(e);
+	Ui_Multi_FillScreen();
 }
 #pragma endregion Screen_MultiMeter
 #pragma region Screen_PeriphChoice
-void Ui_PeriphChoice_Next(lv_event_t * e)
-{
-	if (ActivePeriph) {
-		PeriphClass *PeriphT = FindNextPeriph(NULL, ActivePeriph, SENS_TYPE_ALL, CIRCULAR);
-		if (PeriphT) 
-		{
-			ActivePeriph = PeriphT;
-			Ui_Periph_Choice_Loaded(e);
-		}
-	}
-}
-void Ui_PeriphChoice_Last(lv_event_t * e)
-{
-	if (ActivePeriph) {
-		PeriphClass *PeriphT = FindPrevPeriph(NULL, ActivePeriph, SENS_TYPE_ALL, CIRCULAR);
-		if (PeriphT) 
-		{
-			ActivePeriph = PeriphT;
-			Ui_Periph_Choice_Loaded(e);
-		}
-	}
-}
-void Ui_PeriphChoice_Click(lv_event_t * e)
-{
-	Screen[ActiveMultiScreen].AddPeriph(MultiPosToChange, ActivePeriph);
-	Module.SetChanged(true);
-	_ui_screen_change(&ui_ScrMulti, MY_ANIM, 500, 0, &ui_ScrMulti_screen_init);
-}
-void Ui_Periph_Choice_Loaded(lv_event_t * e)
+void Ui_Periph_Choice_FillScreen()
 {
 	PeerClass *P;
 	if (!ActivePeriph) ActivePeriph = FindNextPeriph(NULL, NULL, SENS_TYPE_ALL, CIRCULAR);
@@ -469,6 +471,85 @@ void Ui_Periph_Choice_Loaded(lv_event_t * e)
 		if (ActivePeriph->IsSwitch()) lv_img_set_src(ui_ImgPeerChoice, &ui_img_888658411); 
 		if (ActivePeriph->IsSensor()) lv_img_set_src(ui_ImgPeerChoice, &ui_img_menubtn1_png);
 	}
+}
+void Ui_PeriphChoice_Next(lv_event_t * e)
+{
+	if (ActivePeriph) {
+		PeriphClass *PeriphT = FindNextPeriph(NULL, ActivePeriph, SENS_TYPE_ALL, CIRCULAR);
+		if (PeriphT) 
+		{
+			ActivePeriph = PeriphT;
+			Ui_Periph_Choice_FillScreen();
+		}
+	}
+}
+void Ui_PeriphChoice_Last(lv_event_t * e)
+{
+	if (ActivePeriph) {
+		PeriphClass *PeriphT = FindPrevPeriph(NULL, ActivePeriph, SENS_TYPE_ALL, CIRCULAR);
+		if (PeriphT) 
+		{
+			ActivePeriph = PeriphT;
+			Ui_Periph_Choice_FillScreen();
+		}
+	}
+}
+void Ui_PeriphChoice_Click(lv_event_t * e)
+{
+	Screen[ActiveMultiScreen].AddPeriph(MultiPosToChange, ActivePeriph);
+	Module.SetChanged(true);
+	_ui_screen_change(&ui_ScrMulti, MY_ANIM, 500, 0, &ui_ScrMulti_screen_init);
+}
+void Ui_Periph_Choice_Loaded(lv_event_t * e)
+{
+	static uint32_t user_data = 10;
+	if (Knob.Clicked)
+	{
+		Knob.LastClicked = Knob.Clicked;
+		Knob.Clicked     = 0;
+	}
+
+	Ui_Periph_Choice_FillScreen();
+
+	if (ChoiceTimer) 
+	{
+		lv_timer_resume(ChoiceTimer);
+	}
+	else 
+	{
+		ChoiceTimer = lv_timer_create(ChoiceUpdateTimer, 100,  &user_data);
+	}
+}
+void ChoiceUpdateTimer(lv_timer_t * timer)
+{
+	if (Knob.Clicked)
+	{
+		Knob.LastClicked = Knob.Clicked;
+		Knob.Clicked     = 0;
+		
+		Ui_Multi_ClearScreen();
+		if (Knob.Diff < 0) 
+		{
+			if (ActivePeriph) 
+			{
+				PeriphClass *PeriphT = FindPrevPeriph(NULL, ActivePeriph, SENS_TYPE_ALL, CIRCULAR);
+				if (PeriphT) ActivePeriph = PeriphT;
+			}
+		}
+		else
+		{
+			if (ActivePeriph) {
+				PeriphClass *PeriphT = FindNextPeriph(NULL, ActivePeriph, SENS_TYPE_ALL, CIRCULAR);
+				if (PeriphT) ActivePeriph = PeriphT;
+				}
+		}
+		Ui_Periph_Choice_FillScreen();
+	}
+}
+void Ui_Periph_Choice_Unload(lv_event_t * e)
+{
+	if (ChoiceTimer) lv_timer_del(ChoiceTimer);
+	ChoiceTimer = NULL;
 }
 #pragma endregion Screen_PeriphChoice
 #pragma region System_TimerAndInit

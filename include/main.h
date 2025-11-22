@@ -30,11 +30,18 @@ struct ConfirmStruct {
     int      Try;
     bool     Confirmed;
 };
-
 struct ReceivedMessagesStruct {
     uint8_t  From[6];
     uint32_t TS;
     uint32_t SaveTime;
+};
+
+struct KnobStruct {
+    uint32_t LastClicked;
+    uint32_t Clicked;
+    int32_t  Diff;
+    int32_t  Invd;
+    uint32_t Last;
 };
 
 void   PrintMAC(const uint8_t * mac_addr);
@@ -90,4 +97,6 @@ extern int ActiveMultiScreen;
 extern const char *_Version;
 extern void ToggleWebServer();
 extern bool WebServerActive;
+
+extern KnobStruct Knob;
 #endif
