@@ -1092,7 +1092,7 @@ char *MacByteToChar(char *MAC, uint8_t *mac)
     return MAC;
 }
 
-void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) 
+void OnDataSent(const esp_now_send_info_t *tx_info, esp_now_send_status_t status)
 { 
     if (status == ESP_NOW_SEND_SUCCESS)
     {
