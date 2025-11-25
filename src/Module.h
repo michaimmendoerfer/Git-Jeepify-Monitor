@@ -3,9 +3,9 @@
 
 #include <Jeepify.h>
 
-//#define MODULE_MONITOR_360
+//#define MODULE_MONITOR_360_SILVER
 //#define MODULE_MONITOR_360_KNOB
-#define MODULE_MONITOR_466_RED
+//#define MODULE_MONITOR_466_RED
 //#define MODULE_MONITOR_480
 //#define MODULE_MONITOR_240
 //#define MODULE_MONITOR_240_C3
@@ -23,7 +23,7 @@
     #define UI_EVENTS_H_DIR "Ui_360/ui_events.h" 
 #endif
 
-#ifdef MODULE_MONITOR_360
+#ifdef MODULE_MONITOR_360_SILVER
     #define NODE_NAME "360_Slv"
     #define NODE_TYPE MONITOR_ROUND
     #define SCREEN_RES_HOR 360

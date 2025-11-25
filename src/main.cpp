@@ -2,11 +2,11 @@
 //#define KILL_NVS 
 
 #include "main.h"
-#ifdef MODULE_MONITOR_360
-    #include "scr_tft360round_silver.h"
+#ifdef MODULE_MONITOR_360_SILVER
+    #include "Devices/Monitor_round_360_silver/scr_tft360round_silver.h"
 #endif
 #ifdef MODULE_MONITOR_360_KNOB
-    #include "scr_tft360Knob.h"
+    #include "Devices/Monitor_round_360_knob/scr_tft360Knob.h"
 #endif
 #ifdef MODULE_MONITOR_466_RED
     #include "Devices/Monitor-round_466_red/scr_tft466_round_s3_red.h"
@@ -675,7 +675,7 @@ void setup()
 
     if (esp_now_init() != ESP_OK) { DEBUG1 ("Error initializing ESP-NOWn\r"); return; }
 
-    esp_now_register_send_cb(OnDataSent);
+    esp_now_register_send_cb((esp_now_send_cb_t) OnDataSent);
     esp_now_register_recv_cb(OnDataRecv);   
     
     //Get saved Peers  
@@ -702,12 +702,13 @@ void setup()
 }
 void loop() 
 {
-    #ifdef LVGL9
+    //#ifdef LVGL9
         static auto lv_last_tick = millis();
         auto const  now = millis();
         lv_tick_inc(now - lv_last_tick);
         lv_last_tick = now;
-    #endif
+        delay(5);
+    //#endif
 
     lv_timer_handler(); 
     //delay(5);
@@ -1096,7 +1097,8 @@ char *MacByteToChar(char *MAC, uint8_t *mac)
     return MAC;
 }
 
-void OnDataSent(const unsigned char *tx_info, esp_now_send_status_t status)
+// 3.4.1 void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status)
+void OnDataSent(const uint8_t *tx_info, esp_now_send_status_t status)
 { 
     if (status == ESP_NOW_SEND_SUCCESS)
     {
