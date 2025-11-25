@@ -8,6 +8,10 @@
 #ifdef MODULE_MONITOR_360_KNOB
     #include "scr_tft360Knob.h"
 #endif
+#ifdef MODULE_MONITOR_466_RED
+    #include "Devices/Monitor-round_466_red/scr_tft466_round_s3_red.h"
+    
+#endif
 
 #pragma region Globals
 
@@ -1092,7 +1096,7 @@ char *MacByteToChar(char *MAC, uint8_t *mac)
     return MAC;
 }
 
-void OnDataSent(const esp_now_send_info_t *tx_info, esp_now_send_status_t status)
+void OnDataSent(const unsigned char *tx_info, esp_now_send_status_t status)
 { 
     if (status == ESP_NOW_SEND_SUCCESS)
     {

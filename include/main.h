@@ -46,7 +46,7 @@ struct KnobStruct {
 
 void   PrintMAC(const uint8_t * mac_addr);
 
-void OnDataSent(const esp_now_send_info_t *tx_info, esp_now_send_status_t status);
+void OnDataSent(const unsigned char *tx_info, esp_now_send_status_t status);
 #ifdef MODULE_MONITOR_360 
     void OnDataRecv(const esp_now_recv_info *info, const uint8_t* incomingData, int len);
 #endif
