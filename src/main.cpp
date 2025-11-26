@@ -3,13 +3,13 @@
 
 #include "main.h"
 #ifdef MODULE_MONITOR_360_SILVER
-    #include "Devices/Monitor_round_360_silver/scr_tft360round_silver.h"
+    #include "Dev_360_silver_scr_tft.h"
 #endif
 #ifdef MODULE_MONITOR_360_KNOB
-    #include "Devices/Monitor_round_360_knob/scr_tft360Knob.h"
+    #include "Dev_360_knob_scr_tft.h"
 #endif
 #ifdef MODULE_MONITOR_466_RED
-    #include "Devices/Monitor-round_466_red/scr_tft466_round_s3_red.h"
+    #include "Dev_466_red_scr_tft.h"
     
 #endif
 

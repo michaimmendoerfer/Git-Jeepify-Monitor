@@ -582,7 +582,9 @@ void TopUpdateTimer(lv_timer_t * timer)
 	}
 	#ifdef BATTERY_PORT
 		char buf[10];
-		dtostrf(analogRead(BATTERY_PORT) * BATTERY_DEVIDER / 4095 * 3.3, 0, 3, buf);
+		pinMode(0, INPUT);
+		float Batt = analogRead(BATTERY_PORT) * BATTERY_DEVIDER / 4095 * 3.3;
+		dtostrf(Batt, 0, 3, buf);
 		strcat(buf, "V");
 		lv_label_set_text(ui_LblMenuBatt, buf);
 	#endif
